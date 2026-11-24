@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#ffffff">
+<title>知幾筆記 · AI六爻解讀</title>
+<link rel="stylesheet" href="/assets/app.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='24' fill='%23a5382c'/><text x='50' y='72' font-size='60' text-anchor='middle' fill='%23fdf6e8' font-family='serif'>卦</text></svg>">
+</head>
+<body>
+
+<!-- ─────────── 左：卷首與紀錄 ─────────── -->
+<aside class="sidebar" id="sidebar">
+  <div class="brand">
+    <div class="brand-text">
+      <h1>知幾筆記</h1>
+      <p>AI六爻解讀</p>
+    </div>
+  </div>
+
+  <button class="new-chat" id="btnNew" type="button">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+    <span>新的占問</span>
+  </button>
+
+  <div class="side-scroll">
+    <div class="side-head">
+      <span class="side-title">占問紀錄</span>
+      <span class="side-count" id="historyCount"></span>
+    </div>
+    <p class="history-empty" id="historyEmpty">尚無紀錄。<br>起一卦，便有存檔。</p>
+    <ul class="history" id="history"></ul>
+  </div>
+
+  <div class="side-foot">
+    <button class="foot-btn" id="btnSettings" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
+        <path d="M4 7.5h9M17.5 7.5H20M4 16.5h2.5M11 16.5h9"/>
+        <circle cx="15" cy="7.5" r="2.2"/><circle cx="8.5" cy="16.5" r="2.2"/>
+      </svg>
+      <span class="foot-label">設定</span>
+      <span class="llm-state" id="llmState">檢查中…</span>
+    </button>
+    <p class="foot-note">斷勢・象・時機　非事實預測</p>
+  </div>
+</aside>
+
+<div class="scrim" id="navScrim" hidden></div>
+
+<!-- ─────────── 右：問答 ─────────── -->
+<main class="main">
+
+  <header class="topbar">
+    <div class="topbar-left">
+      <button class="icon-btn only-mobile" id="btnMenu" type="button" aria-label="開啟選單">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      </button>
+      <div class="topbar-title">
+        <h2 id="chatTitle">新的占問</h2>
+      </div>
+      <span class="topbar-sub" id="chatSub" hidden></span>
+    </div>
+    <div class="topbar-right">
+      <button class="ghost-btn" id="btnCopy" type="button" hidden aria-label="複製解讀">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2.4"/><path d="M15 5.5A2.5 2.5 0 0 0 12.5 3H6.5A2.5 2.5 0 0 0 4 5.5v6A2.5 2.5 0 0 0 6.5 14"/></svg>
+        <span>複製解讀</span>
+      </button>
+    </div>
+  </header>
+
+  <div class="viewport" id="viewport">
+    <section class="empty" id="empty">
+      <div class="empty-mark" aria-hidden="true">
+        <span>☰</span><span>☱</span><span>☲</span><span>☳</span>
+        <span>☴</span><span>☵</span><span>☶</span><span>☷</span>
+      </div>
+      <h2 class="empty-title">所問何事？</h2>
+      <p class="empty-sub">心中默念所問，再落筆。<br>卦由時定，月建日辰皆依此刻推算。</p>
+    </section>
+
+    <section class="thread" id="thread" hidden></section>
+  </div>
+
+  <div class="dock">
+    <form class="composer" id="composer" autocomplete="off">
+      <textarea id="prompt" rows="1" maxlength="400" placeholder="寫下所問何事…" aria-label="占問內容"></textarea>
+      <div class="composer-bar">
+        <span class="composer-hint" id="composerHint">Enter 送出　·　Shift + Enter 換行</span>
+        <button class="send-btn" id="btnSend" type="submit" aria-label="送出">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg>
+        </button>
+      </div>
+    </form>
+    <p class="dock-warn" id="dockWarn" hidden></p>
+    <p class="dock-note" id="dockNote" hidden></p>
+  </div>
+</main>
+
+<!-- ─────────── 設定 ─────────── -->
+<div class="modal-scrim" id="sheetBackdrop" hidden></div>
+<section class="sheet" id="settingsSheet" role="dialog" aria-modal="true" aria-labelledby="settingsTitle" tabindex="-1" hidden>
+  <header class="sheet-head">
+    <div>
+      <h2 id="settingsTitle">設定</h2>
+      <p>解卦模型、金鑰與占問方式，都收在這裡。</p>
+    </div>
+    <button class="icon-btn" id="btnCloseSettings" type="button" aria-label="關閉">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+  </header>
+
+  <div class="sheet-body">
+    <section class="sect">
+      <h3 class="sect-title">解卦模型</h3>
+
+      <div class="grid-2">
+        <label class="field">
+          <span class="field-label">供應商</span>
+          <select id="cfgProvider"></select>
+        </label>
+        <label class="field">
+          <span class="field-label">模型</span>
+          <input id="cfgModel" type="text" list="modelList" placeholder="模型名稱" autocomplete="off">
+          <datalist id="modelList"></datalist>
+        </label>
+      </div>
+
+      <label class="field">
+        <span class="field-label">API 金鑰</span>
+        <input id="cfgKey" type="password" placeholder="貼上 API key" autocomplete="off">
+        <span class="field-hint" id="cfgKeyHint"></span>
+      </label>
+
+      <label class="field" id="cfgBaseWrap" hidden>
+        <span class="field-label">Base URL（自訂端點）</span>
+        <input id="cfgBase" type="text" placeholder="https://your-endpoint/v1" autocomplete="off">
+      </label>
+
+      <div class="grid-2">
+        <label class="field">
+          <span class="field-label">溫度 <b id="tempVal">0.70</b></span>
+          <input type="range" id="cfgTemp" min="0" max="1.2" step="0.05" value="0.7">
+        </label>
+        <label class="field">
+          <span class="field-label">最大長度</span>
+          <input id="cfgMax" type="number" min="256" max="32000" step="256" value="4000">
+        </label>
+      </div>
+
+      <p class="sheet-note" id="cfgNote"></p>
+    </section>
+
+    <section class="sect">
+      <h3 class="sect-title">占問方式</h3>
+
+      <div class="field">
+        <span class="field-label">起卦方式</span>
+        <div class="seg" id="prefMode">
+          <button type="button" class="seg-btn is-on" data-mode="coins">擲錢起卦</button>
+          <button type="button" class="seg-btn" data-mode="manual">手動指定</button>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <label class="field">
+          <span class="field-label">用神</span>
+          <select id="prefYongshen">
+            <option value="">自動推斷</option>
+            <option value="父母">父母</option>
+            <option value="兄弟">兄弟</option>
+            <option value="子孫">子孫</option>
+            <option value="妻財">妻財</option>
+            <option value="官鬼">官鬼</option>
+          </select>
+        </label>
+        <div class="field">
+          <span class="field-label">占卦時間</span>
+          <div class="seg" id="prefWhenMode">
+            <button type="button" class="seg-btn is-on" data-when="now">現在</button>
+            <button type="button" class="seg-btn" data-when="custom">指定</button>
+          </div>
+        </div>
+      </div>
+
+      <label class="field" id="prefWhenWrap" hidden>
+        <span class="field-label">指定時間</span>
+        <input type="datetime-local" id="prefWhen">
+      </label>
+
+      <div class="grid-2" id="prefManualWrap" hidden>
+        <label class="field">
+          <span class="field-label">卦名</span>
+          <input list="hexList" id="prefHex" type="text" placeholder="例：地澤臨（可只填「臨」）" autocomplete="off">
+          <datalist id="hexList"></datalist>
+        </label>
+        <label class="field">
+          <span class="field-label">動爻</span>
+          <input id="prefMoving" type="text" placeholder="例：2 或 2,4（自下而上 1–6）" autocomplete="off">
+        </label>
+      </div>
+
+      <p class="field-hint" id="prefHint">預設擲錢起卦、現在起卦、自動取用神；這裡的選擇會套用到下一次占問。</p>
+      <p class="sheet-error" id="sheetError" hidden></p>
+    </section>
+  </div>
+
+  <footer class="sheet-foot">
+    <button class="btn-ghost" id="btnClearKey" type="button">清除金鑰</button>
+    <button class="btn-primary" id="btnSaveSettings" type="button">儲存設定</button>
+  </footer>
+</section>
+
+<div class="term-pop" id="termPop" hidden></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<!-- 卦盤模板（不顯示，renderBoard 寫入後再掛進對話流） -->
+<div id="boardContent" hidden></div>
+
+<script src="/assets/app.js"></script>
+</body>
+</html>

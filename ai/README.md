@@ -35,16 +35,18 @@ bash ai/start.sh
 
 ## 部署到 Vercel
 
-本機仍用 `ai/server.py` 的標準庫伺服器；雲端由 `ai/wsgi.py` 的 Flask WSGI app 接手同一組路由與前端靜態檔。
+本機仍用 `ai/server.py` 的標準庫伺服器；雲端由 `api/*.py` 的 Python functions 提供 API，前端靜態檔放在 `public/`。
 
 1. 把 GitHub repo 連到 Vercel，Framework Preset 選 **Other**，Root Directory 保持專案根目錄。
 2. 在 **Settings → Environment Variables** 設定：
    - `DEEPSEEK_API_KEY`：你的 API 金鑰（必填）
    - `LIUYAO_LLM_PROVIDER`：`deepseek`（預設）
    - `LIUYAO_LLM_MODEL`：`deepseek-chat`（預設）
-3. 重新部署。入口已寫在 `pyproject.toml` 的 `[tool.vercel] entrypoint = "ai.wsgi:app"`，依賴在 `requirements.txt`，靜態檔與知識庫由 `vercel.json` 的 `includeFiles` 一併打包。
+3. 重新部署。`public/` 會成為靜態網站，`api/` 下每個檔案自動成為 `/api/<檔名>`；依賴在 `requirements.txt`，`vercel.json` 會把知識庫與排盤引擎一起打包，並給 SSE 60 秒。
 
-雲端檔案系統唯讀，所以設定面板的「儲存」會回傳 403；金鑰與模型請用上面的環境變數。`/api/read` 是 SSE 串流，Vercel 已支援 WSGI streaming，`maxDuration` 目前設 60 秒。
+每次改前端（`ai/web`）後，執行 `python ai/tools/sync_public.py` 更新 `public/`，再提交。
+
+雲端檔案系統唯讀，所以設定面板的「儲存」會回傳 403；金鑰與模型請用上面的環境變數。`/api/read` 是 SSE 串流，Vercel 已支援 WSGI streaming。
 
 ---
 
