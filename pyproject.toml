@@ -6,6 +6,7 @@ readme = "README.md"
 license = {text = "MIT"}
 authors = [{name = "Johnson"}]
 requires-python = ">=3.9"
+dependencies = ["httpx>=0.27,<1", "flask>=3.0,<4"]
 keywords = ["liuyao", "iching", "divination", "六爻", "周易", "skill", "claude"]
 
 [project.optional-dependencies]
@@ -20,6 +21,9 @@ package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.vercel]
+entrypoint = "ai.wsgi:app"
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

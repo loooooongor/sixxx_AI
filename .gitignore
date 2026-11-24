@@ -1,4 +1,4 @@
-﻿# Python
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
@@ -62,6 +62,9 @@ probe.err
 pip-out.txt
 pip-err.txt
 wheels/
+
+# Vercel 本機連結與快取
+.vercel/
 
 # 繁體化前的簡體備份
 backup_simplified/

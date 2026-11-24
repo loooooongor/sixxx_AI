@@ -33,6 +33,21 @@ bash ai/start.sh
 
 ---
 
+## 部署到 Vercel
+
+本機仍用 `ai/server.py` 的標準庫伺服器；雲端由 `ai/wsgi.py` 的 Flask WSGI app 接手同一組路由與前端靜態檔。
+
+1. 把 GitHub repo 連到 Vercel，Framework Preset 選 **Other**，Root Directory 保持專案根目錄。
+2. 在 **Settings → Environment Variables** 設定：
+   - `DEEPSEEK_API_KEY`：你的 API 金鑰（必填）
+   - `LIUYAO_LLM_PROVIDER`：`deepseek`（預設）
+   - `LIUYAO_LLM_MODEL`：`deepseek-chat`（預設）
+3. 重新部署。入口已寫在 `pyproject.toml` 的 `[tool.vercel] entrypoint = "ai.wsgi:app"`，依賴在 `requirements.txt`，靜態檔與知識庫由 `vercel.json` 的 `includeFiles` 一併打包。
+
+雲端檔案系統唯讀，所以設定面板的「儲存」會回傳 403；金鑰與模型請用上面的環境變數。`/api/read` 是 SSE 串流，Vercel 已支援 WSGI streaming，`maxDuration` 目前設 60 秒。
+
+---
+
 ## 這個 AI 會做什麼
 
 起一卦，它會依《增刪卜易》一脈的**八步斷卦流程**推理，輸出成以下結構：
@@ -212,7 +227,8 @@ LIUYAO_PORT=8848
 
 開發環境缺少可編譯的 `pydantic-core`（需 C 編譯器），而本專案要求**零編譯依賴、開箱即跑**，
 故後端以 Python 標準庫 `http.server` 實作，SSE 串流以原生寫入達成。
-唯一的第三方依賴是 `httpx`（用於呼叫 LLM API），且可沿用系統既有安裝。
+本機後端唯一的第三方依賴是 `httpx`（用於呼叫 LLM API），且可沿用系統既有安裝。
+雲端部署另由 `ai/wsgi.py` 的 Flask WSGI app 接手，依賴列在根目錄 `requirements.txt`。
 
 ---
 

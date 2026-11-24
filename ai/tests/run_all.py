@@ -40,6 +40,7 @@ ITEMS = {
     "lock": ([sys.executable, str(HERE / "_check_board_lock.py")], True,
              "一卦只起一次"),
     "api": ([sys.executable, str(HERE / "_check_api.py")], True, "API 端到端"),
+    "wsgi": ([sys.executable, str(HERE / "_check_wsgi.py")], False, "Vercel WSGI"),
     "stream": ([sys.executable, str(HERE / "_check_stream.py")], True, "SSE 串流"),
 }
 

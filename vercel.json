@@ -1,0 +1,17 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "ai/wsgi*": {
+      "maxDuration": 60,
+      "includeFiles": [
+        "ai/*.py",
+        "ai/web/**",
+        "ai/liuyao_ai/**",
+        "data/**",
+        "references/**",
+        "skill/**",
+        "src/**"
+      ]
+    }
+  }
+}
