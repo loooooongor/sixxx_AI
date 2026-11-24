@@ -1,8 +1,10 @@
-"""排盘主逻辑：把主卦+动爻+月日 装成完整的结构化卦盘。
+"""排盤主邏輯：把主卦+動爻+月日 裝成完整的結構化卦盤。
 
-cast_board(...) 返回 Board 对象，含六爻的全部信息：
-阴阳、纳甲、六亲、六神、世应、动变、空亡、月破、日破、暗动、化进化退、入墓、旺衰。
+cast_board(...) 返回 Board 物件，含六爻的全部資訊：
+陰陽、納甲、六親、六神、世應、動變、空亡、月破、日破、暗動、化進化退、入墓、旺衰。
 """
+
+import itertools
 
 from .data import (
     BAGUA, BAGUA_NAGAN, BAGUA_NAZHI, DIZHI_WUXING, WUXING_MU,
@@ -25,15 +27,15 @@ from .wuxing import (
 
 
 def _yao_to_bagua(yao3):
-    """由三爻(自下而上 [初,中,上]，1阳0阴)反查八卦名。"""
+    """由三爻(自下而上 [初,中,上]，1陽0陰)反查八卦名。"""
     for name, info in BAGUA.items():
         if info["yao"] == yao3:
             return name
-    raise ValueError(f"无法识别的卦象: {yao3}")
+    raise ValueError(f"無法識別的卦象: {yao3}")
 
 
 def _find_changed_hexagram(changed_lower_gua, changed_upper_gua):
-    """由变卦的上下卦反查变卦全名（可能查不到组合，返回 None）。"""
+    """由變卦的上下卦反查變卦全名（可能查不到組合，返回 None）。"""
     for rec in HEXAGRAMS.values():
         if rec["upper"] == changed_upper_gua and rec["lower"] == changed_lower_gua:
             return rec["name"]
@@ -43,74 +45,74 @@ def _find_changed_hexagram(changed_lower_gua, changed_upper_gua):
 def _spirit_effective(ln, board):
     """判定元神/忌神是否有力（有效）。返回 (effective, reason)。
 
-    effective: True=有力(能生用/能克用), False=无力(见生不生/虽动不克), None=中和不定。
-    依据《增删卜易·用神元神忌神仇神章》有力五条/无用六条/忌神不克七条综合。
+    effective: True=有力(能生用/能克用), False=無力(見生不生/雖動不克), None=中和不定。
+    依據《增刪卜易·用神元神忌神仇神章》有力五條/無用六條/忌神不克七條綜合。
     """
-    # —— 明显无力（任一命中即无力）——
+    # —— 明顯無力（任一命中即無力）——
     if ln.month_break:
-        return (False, "月破无力")
+        return (False, "月破無力")
     if ln.in_grave:
-        return (False, "入墓无力")
-    if ln.jin_tui == "化回头克":
-        return (False, "化回头克无力")
+        return (False, "入墓無力")
+    if ln.jin_tui == "化回頭克":
+        return (False, "化回頭克無力")
     if ln.jin_tui == "化退神":
-        return (False, "化退神无力")
+        return (False, "化退神無力")
     if ln.day_break:
-        return (False, "日破无力")
+        return (False, "日破無力")
     if ln.true_void:
-        return (False, "真空无力")
+        return (False, "真空無力")
     if ln.state in ("囚", "死") and ln.void:
-        return (False, "休囚旬空无力")
+        return (False, "休囚旬空無力")
     if ln.state in ("囚", "死") and not ln.is_moving and not ln.dark_move:
-        return (False, "休囚不动无力")
-    if ln.state in ("囚", "死") and ln.stage in ("绝", "墓", "死") and not ln.is_moving:
-        return (False, "衰绝无力")
+        return (False, "休囚不動無力")
+    if ln.state in ("囚", "死") and ln.stage in ("絕", "墓", "死") and not ln.is_moving:
+        return (False, "衰絕無力")
 
     # —— 有力（任一命中即有力）——
     if ln.is_on_month or ln.is_on_day:
-        return (True, "临日月有力")
+        return (True, "臨日月有力")
     if ln.state in ("旺", "相"):
         return (True, "旺相有力")
-    if ln.jin_tui in ("化回头生", "化进神"):
+    if ln.jin_tui in ("化回頭生", "化進神"):
         return (True, f"{ln.jin_tui}有力")
     if ln.is_moving or ln.dark_move:
-        return (True, "发动有力")
+        return (True, "發動有力")
 
     return (None, "中和")
 
 
 def _analyze_gua_bian(board):
-    """卦变生克：以主卦宫五行 vs 变卦宫五行（《增删卜易·卦变生克墓绝章》）。
+    """卦變生克：以主卦宮五行 vs 變卦宮五行（《增刪卜易·卦變生克墓絕章》）。
 
-    变生/变比和为吉，变克为凶。
+    變生/變比和為吉，變克為凶。
     """
     main_wx = board.palace_wx
     ch_name = board.changed_hexagram
     if not ch_name:
-        board.gua_bian = "变卦未明"
+        board.gua_bian = "變卦未明"
         return
     ch_rec = find_hexagram(ch_name)
     if not ch_rec:
-        board.gua_bian = "变卦未明"
+        board.gua_bian = "變卦未明"
         return
     ch_wx = ch_rec["palace_wx"]
     if ch_wx == main_wx:
-        board.gua_bian = "变比和(吉)"
+        board.gua_bian = "變比和(吉)"
     elif i_sheng(ch_wx) == main_wx:
-        board.gua_bian = "变生主(吉)"
+        board.gua_bian = "變生主(吉)"
     elif i_ke(ch_wx) == main_wx:
-        board.gua_bian = "变克主(凶)"
+        board.gua_bian = "變克主(凶)"
     elif i_sheng(main_wx) == ch_wx:
-        board.gua_bian = "主生变(泄)"
+        board.gua_bian = "主生變(洩)"
     elif i_ke(main_wx) == ch_wx:
-        board.gua_bian = "主克变(制)"
+        board.gua_bian = "主克變(制)"
     else:
-        board.gua_bian = "无"
+        board.gua_bian = "無"
 
 
 def _detect_fu_fan_yin(board):
-    """伏吟：主卦六爻地支全等于变卦地支(卦变而地支不变)。
-    反吟(简化)：所有动爻皆化回头冲(变爻地支冲动爻地支)。"""
+    """伏吟：主卦六爻地支全等於變卦地支(卦變而地支不變)。
+    反吟(簡化)：所有動爻皆化回頭沖(變爻地支衝動爻地支)。"""
     moving = board.moving_lines
     if not moving:
         return
@@ -123,38 +125,144 @@ def _detect_fu_fan_yin(board):
 
 
 def _detect_sanhe(board):
-    """检测三合成局（《增删卜易·三合章》）：明动+暗动皆算动爻。
+    """檢測三合成局：只認位置正確或日月助成的局。
 
-    三支齐于卦内 + 动爻≥2 → 实成之局；
-    三支齐于卦内 + 动爻<2 → 虚合待用(支齐动不足)；
-    支不全(有支在月日不在卦) → 虚合(待填实)。
+    成局條件（任一）：
+    * 初爻、三爻皆為動爻（明動/暗動），且這兩爻的支為局中兩支；
+    * 四爻、上爻皆為動爻（明動/暗動），且這兩爻的支為局中兩支；
+    * 三支中有一支在月建或日辰，且其餘兩支都是動爻。
+
+    其餘情況即使三支都在卦中，也只是虛合；靜爻不得拿來湊局。
     """
+    line_at = {ln.position: ln for ln in board.lines}
     board_zhi = {ln.zhi for ln in board.lines}
-    moving_zhi = {ln.zhi for ln in board.lines if ln.is_moving or ln.dark_move}
+    month_day = {board.month_zhi, board.day_zhi}
+    active = lambda ln: bool(ln.is_moving or getattr(ln, "dark_move", False))
+    active_zhi = {ln.zhi for ln in board.lines if active(ln)}
+
     result = {}
     for a, b, c, wx in SANHE_JU:
         tri = (a, b, c)
+        trio = set(tri)
         in_board_zhi = [z for z in tri if z in board_zhi]
         if not in_board_zhi:
             continue
-        moving_count = sum(1 for z in tri if z in moving_zhi)
-        if len(in_board_zhi) == 3:
-            status = "实成之局" if moving_count >= 2 else "虚合待用(支齐动不足)"
+        moving_count = sum(1 for z in tri if z in active_zhi)
+
+        pair_reasons = []
+        for label, (p1, p2) in (("內卦", (1, 3)), ("外卦", (4, 6))):
+            l1, l2 = line_at.get(p1), line_at.get(p2)
+            if (l1 and l2 and active(l1) and active(l2)
+                    and l1.zhi in trio and l2.zhi in trio
+                    and l1.zhi != l2.zhi):
+                pair_reasons.append(label)
+
+        day_month_reason = False
+        for dm in trio & month_day:
+            others = trio - {dm}
+            if all(
+                any(ln.zhi == z and active(ln) for ln in board.lines)
+                for z in others
+            ):
+                day_month_reason = True
+                break
+
+        if pair_reasons or day_month_reason:
+            status = "實成之局"
+            formed_by = pair_reasons + (["日月"] if day_month_reason else [])
+        elif len(in_board_zhi) == 3:
+            status = "虛合待用(位置或動爻不足)"
+            formed_by = []
         else:
-            missing = [z for z in tri if z not in board_zhi]
-            status = f"虚合(缺{''.join(missing)}，待填实)"
+            missing = [z for z in tri if z not in board_zhi and z not in month_day]
+            if missing:
+                status = f"虛合(缺{''.join(missing)}，待填實)"
+            else:
+                status = "虛合待用(日月有支、動爻不足)"
+            formed_by = []
+
         result[f"{a}{b}{c}{wx}局"] = {
             "status": status,
             "moving_count": moving_count,
             "branches_in_board": in_board_zhi,
+            "formed_by": formed_by,
         }
     board.sanhe = result
 
 
-def _detect_liuhe_liuchong(board, ch_lower, ch_upper):
-    """检测六合卦/六冲卦（《增删卜易·六合章/六冲章》）。
+def _match_sanhe(zhis):
+    """三支恰成一局則返回 SANHE_JU 該條 (支,支,支,五行)，否則 None。"""
+    if len(set(zhis)) != 3:
+        return None
+    trio = set(zhis)
+    for a, b, c, wx in SANHE_JU:
+        if trio == {a, b, c}:
+            return (a, b, c, wx)
+    return None
 
-    六合卦：初四、二五、三上 三对皆地支六合；六冲卦：三对皆六冲。主卦、变卦各检测。
+
+def _detect_sanhe_local(board):
+    """內卦三合局／外卦三合局：位置限定的「動爻＋變爻」成局。
+
+    規則（《增刪卜易·三合章》之外，坊間另有內外卦成局法）：
+    * 內卦三合局：初爻、三爻**皆明動**方可論（暗動本質為靜爻，不計）；
+    * 外卦三合局：四爻、上爻皆明動方可論；
+    * 位置不對（二、五爻，或只動其中一爻）不能成局；
+    * 成局三支須取自該內／外卦兩動爻的「原支＋變支」，且動支、變支必須並見。
+    """
+    result = []
+    for kind, positions in (("內卦三合局", (1, 3)), ("外卦三合局", (4, 6))):
+        pair = [board.line(p) for p in positions]
+        if not all(ln.is_moving for ln in pair):
+            continue
+        slots = []
+        for ln in pair:
+            slots.append((f"{ln.name}爻動", ln.zhi, "動"))
+            slots.append((f"{ln.name}爻化", ln.change_zhi, "變"))
+        seen = {}
+        for combo in itertools.combinations(slots, 3):
+            trio = _match_sanhe([s[1] for s in combo])
+            if trio is None:
+                continue
+            if {s[2] for s in combo} != {"動", "變"}:
+                continue          # 純動支或純變支，非「動變並見」
+            key = frozenset(s[1] for s in combo)
+            score = sum(1 for s in combo if s[2] == "動")
+            if key not in seen or score > seen[key][0]:
+                seen[key] = (score, combo, trio)
+        for score, combo, trio in seen.values():
+            ju = f"{trio[0]}{trio[1]}{trio[2]}{trio[3]}局"
+            item = {
+                "type": kind,
+                "ju": ju,
+                "wx": trio[3],
+                "positions": list(positions),
+                "members": [{"line": s[0], "zhi": s[1]} for s in combo],
+                "combo": "·".join(f"{s[0]}（{s[1]}）" for s in combo),
+            }
+            result.append(item)
+            info = board.sanhe.get(ju)
+            if info is None:
+                info = {"status": "實成之局", "moving_count": score,
+                        "formed_by": [kind], "members": item["members"]}
+                board.sanhe[ju] = info
+            else:
+                if not info["status"].startswith("實成"):
+                    info["status"] = "實成之局"
+                formed = info.get("formed_by") or []
+                if isinstance(formed, str):
+                    formed = [formed]
+                if kind not in formed:
+                    formed.append(kind)
+                info["formed_by"] = formed
+                info.setdefault("members", item["members"])
+    board.sanhe_local = result
+
+
+def _detect_liuhe_liuchong(board, ch_lower, ch_upper):
+    """檢測六合卦/六沖卦（《增刪卜易·六合章/六沖章》）。
+
+    六合卦：初四、二五、三上 三對皆地支六合；六沖卦：三對皆六沖。主卦、變卦各檢測。
     """
     pairs = [(0, 3), (1, 4), (2, 5)]  # 初四 / 二五 / 三上（0 基）
 
@@ -169,68 +277,99 @@ def _detect_liuhe_liuchong(board, ch_lower, ch_upper):
     board.changed_is_liuhe, board.changed_is_liuchong = check(ch6)
 
 
+def _detect_dark_move(board):
+    """暗動／日破（《增刪卜易·日辰章》：靜爻逢日沖，旺相為暗動，休囚為日破）。
+
+    暗動成立條件：
+    1. 必須是**靜爻**——被日沖的是動爻，已是發動，不論暗動（另判動而愈動／沖散）；
+    2. 被**日辰六沖**；
+    3. 爻本身**旺相**（月令旺相或得月日生扶比和）→ 暗動；不旺相 → 日破。
+    另一條來路：靜爻雖不旺，但**得明動之爻生助**（動爻五行生此爻），逢日沖亦作暗動。
+    故日沖之爻分三路：旺相暗動 / 得動爻生助暗動 / 休囚無助日破。
+    """
+    movers = board.moving_lines
+    for ln in board.lines:
+        if ln.is_moving or not ln.day_strike:
+            continue
+        if ln.prosperous:
+            ln.dark_move = True
+            ln.dark_move_reason = "旺相逢沖"
+            continue
+        helpers = [m for m in movers if i_sheng(m.wx) == ln.wx]
+        if helpers:
+            ln.dark_move = True
+            ln.dark_move_reason = "得動爻生助"
+            ln.dark_move_via = [f"{m.name}爻{m.zhi}{m.wx}" for m in helpers]
+        else:
+            ln.day_break = True
+
+
 class Line:
-    """单爻信息。"""
+    """單爻資訊。"""
 
     def __init__(self, position):
         self.position = position            # 1..6
         self.name = {1: "初", 2: "二", 3: "三", 4: "四", 5: "五", 6: "上"}[position]
-        self.yin_yang = None                # "阳"/"阴"
+        self.yin_yang = None                # "陽"/"陰"
         self.gan = None                     # 天干
         self.zhi = None                     # 地支
         self.wx = None                      # 爻五行
-        self.qin = None                     # 六亲
+        self.qin = None                     # 六親
         self.shen = None                    # 六神
         self.is_world = False
         self.is_response = False
         self.is_moving = False
-        # 动爻变爻
+        # 動爻變爻
         self.change_gan = None
         self.change_zhi = None
         self.change_wx = None
         self.change_qin = None
-        # 状态标记
+        # 狀態標記
         self.void = False                   # 空亡
         self.month_break = False            # 月破
-        self.day_strike = False             # 被日冲
-        self.dark_move = False              # 暗动
+        self.day_strike = False             # 被日沖
+        self.dark_move = False              # 暗動
+        self.dark_move_reason = ""          # 暗動緣由："旺相逢沖"/"得動爻生助"
+        self.dark_move_via = []             # 得動爻生助者：動爻清單
         self.day_break = False              # 日破
         self.prosperous = False             # 旺相
-        self.jin_tui = None                 # "化进神"/"化退神"/"化回头生"/"化回头克"/"化比和"
+        self.jin_tui = None                 # "化進神"/"化退神"/"化回頭生"/"化回頭克"/"化比和"
         self.in_grave = []                  # 入墓原因列表
         self.grave_is_void = False          # 是否入空墓
-        self.stage = None                   # 十二长生阶段
+        self.stage = None                   # 十二長生階段
         self.state = None                   # 旺相休囚死
-        self.role = None                    # 相对用神的四神角色(用/元/忌/仇/闲)
-        # —— 扩展判定 ——
-        self.is_on_day = False              # 临日建(爻支==日支)
-        self.is_on_month = False            # 临月建(爻支==月支)
-        self.true_void = False              # 真空(旬空且当季死地)
-        self.day_strike_moving = None       # 动爻被日冲："动而愈动"/"动而冲散"
+        self.role = None                    # 相對用神的四神角色(用/元/忌/仇/閒)
+        # —— 擴充套件判定 ——
+        self.is_on_day = False              # 臨日建(爻支==日支)
+        self.is_on_month = False            # 臨月建(爻支==月支)
+        self.true_void = False              # 真空(旬空且當季死地)
+        self.day_strike_moving = None       # 動爻被日沖："動而愈動"/"動而沖散"
         self.effective = None               # 元神/忌神是否有力 True/False/None
-        self.effective_reason = ""          # 有力/无力理由
+        self.effective_reason = ""          # 有力/無力理由
 
     def label(self):
-        """组合标注，用于展示。"""
+        """組合標註，用於展示。"""
         tags = []
         if self.is_world:
             tags.append("世")
         if self.is_response:
-            tags.append("应")
+            tags.append("應")
         if self.is_moving:
-            tags.append("动")
+            tags.append("動")
         if self.void:
             tags.append("空")
         if self.month_break:
             tags.append("月破")
         if self.dark_move:
-            tags.append("暗动")
+            tags.append("暗動")
+            if self.dark_move_reason == "得動爻生助":
+                tags.append("動爻生助")
         if self.day_break:
             tags.append("日破")
         if self.is_on_month:
-            tags.append("临月建")
+            tags.append("臨月建")
         if self.is_on_day:
-            tags.append("临日建")
+            tags.append("臨日建")
         if self.true_void:
             tags.append("真空")
         if self.day_strike_moving:
@@ -245,7 +384,7 @@ class Line:
 
 
 class Board:
-    """完整卦盘。"""
+    """完整卦盤。"""
 
     def __init__(self):
         self.hexagram = None
@@ -264,18 +403,20 @@ class Board:
         self.lines = [Line(i) for i in range(1, 7)]
         self.yongshen_qin = None
         self.yongshen_lines = []
-        self.yongshen_wx = None             # 用神爻五行(四神判定基准)
-        # —— 卦级分析 ——
-        self.gua_bian = None                # 卦变生克(主宫vs变宫)
+        self.yongshen_wx = None             # 用神爻五行(四神判定基準)
+        # —— 卦級分析 ——
+        self.gua_bian = None                # 卦變生克(主宮vs變宮)
         self.fu_yin = False                 # 伏吟
         self.fan_yin = False                # 反吟
-        self.sanhe = {}                     # 三合局检测结果
+        self.sanhe = {}                     # 三合局檢測結果
+        self.sanhe_local = []               # 內卦／外卦三合局（動變成局）
+
         self.is_liuhe_gua = False           # 主卦六合卦
-        self.is_liuchong_gua = False        # 主卦六冲卦
-        self.changed_is_liuhe = False       # 变卦六合卦
-        self.changed_is_liuchong = False    # 变卦六冲卦
-        self.changed_lower_gua = None       # 变卦下卦名
-        self.changed_upper_gua = None       # 变卦上卦名
+        self.is_liuchong_gua = False        # 主卦六沖卦
+        self.changed_is_liuhe = False       # 變卦六合卦
+        self.changed_is_liuchong = False    # 變卦六沖卦
+        self.changed_lower_gua = None       # 變卦下卦名
+        self.changed_upper_gua = None       # 變卦上卦名
 
     def line(self, pos):
         return self.lines[pos - 1]
@@ -285,9 +426,9 @@ class Board:
         return [l for l in self.lines if l.is_moving]
 
     def changed_line_info(self):
-        """变卦六爻完整信息（初..上）：[{pos,yin_yang,gan,zhi,qin,shen}]。
+        """變卦六爻完整資訊（初..上）：[{pos,yin_yang,gan,zhi,qin,shen}]。
 
-        纳甲/六亲按变卦本身排（六亲仍以主卦宫为我）；六神同主卦同位置（日干起，按爻位）。
+        納甲/六親按變卦本身排（六親仍以主卦宮為我）；六神同主卦同位置（日干起，按爻位）。
         """
         lower_gan = BAGUA_NAGAN[self.changed_lower_gua][0]
         upper_gan = BAGUA_NAGAN[self.changed_upper_gua][1]
@@ -296,7 +437,7 @@ class Board:
         info = []
         for pos in range(1, 7):
             ln = self.line(pos)
-            yy = ("阴" if ln.yin_yang == "阳" else "阳") if ln.is_moving else ln.yin_yang
+            yy = ("陰" if ln.yin_yang == "陽" else "陽") if ln.is_moving else ln.yin_yang
             if pos <= 3:
                 gan, zhi = lower_gan, lower_zhi[pos - 1]
             else:
@@ -304,7 +445,7 @@ class Board:
             wx = DIZHI_WUXING[zhi]
             info.append({
                 "pos": pos, "yin_yang": yy,
-                "gan": gan, "zhi": zhi,
+                "gan": gan, "zhi": zhi, "wx": wx,
                 "qin": liuqin(wx, self.palace_wx),
                 "shen": ln.shen,
             })
@@ -312,17 +453,17 @@ class Board:
 
 
 def cast_board(hexagram, moving, month_zhi, day_gz, yongshen_qin=None):
-    """排盘。
+    """排盤。
 
     Args:
-        hexagram: 卦名（全名"地泽临"或单字"临"）。
-        moving: 动爻位置，int 或 list[int]（1..6）。
+        hexagram: 卦名（全名"地澤臨"或單字"臨"）。
+        moving: 動爻位置，int 或 list[int]（1..6）。
         month_zhi: 月建地支，如 "未"。
-        day_gz: 日干支，如 "辛卯"（完整两天字符）。
-        yongshen_qin: 可选，用神六亲名（"妻财"等），用于标注各爻角色。
+        day_gz: 日干支，如 "辛卯"（完整兩天字元）。
+        yongshen_qin: 可選，用神六親名（"妻財"等），用於標註各爻角色。
 
     Returns:
-        Board 对象。
+        Board 物件。
     """
     rec = find_hexagram(hexagram)
     if rec is None:
@@ -353,7 +494,7 @@ def cast_board(hexagram, moving, month_zhi, day_gz, yongshen_qin=None):
     upper_yao = BAGUA[upper]["yao"]
     six_yao = lower_yao + upper_yao  # 初..上
 
-    # 变卦（动爻阴阳翻转）
+    # 變卦（動爻陰陽翻轉）
     changed_yao = [(1 - y if (i + 1) in moving_set else y) for i, y in enumerate(six_yao)]
     changed_lower_gua = _yao_to_bagua(changed_yao[0:3])
     changed_upper_gua = _yao_to_bagua(changed_yao[3:6])
@@ -365,7 +506,7 @@ def cast_board(hexagram, moving, month_zhi, day_gz, yongshen_qin=None):
     start_shen = LIUSHEN_START[board.day_gan]
     start_idx = LIUSHEN_ORDER.index(start_shen)
 
-    # 装每爻
+    # 裝每爻
     lower_gan, upper_gan = BAGUA_NAGAN[lower][0], BAGUA_NAGAN[upper][1]
     lower_zhi = BAGUA_NAZHI[lower][:3]
     upper_zhi = BAGUA_NAZHI[upper][3:]
@@ -373,7 +514,7 @@ def cast_board(hexagram, moving, month_zhi, day_gz, yongshen_qin=None):
     for pos in range(1, 7):
         ln = board.line(pos)
         idx = pos - 1
-        ln.yin_yang = "阳" if six_yao[idx] == 1 else "阴"
+        ln.yin_yang = "陽" if six_yao[idx] == 1 else "陰"
         if pos <= 3:
             ln.gan = lower_gan
             ln.zhi = lower_zhi[idx]
@@ -397,22 +538,17 @@ def cast_board(hexagram, moving, month_zhi, day_gz, yongshen_qin=None):
         ln.true_void = ln.void and is_true_void(ln.wx, board.month_zhi)
         # 月破
         ln.month_break = is_chong(board.month_zhi, ln.zhi)
-        # 日冲
+        # 日沖
         ln.day_strike = is_chong(board.day_zhi, ln.zhi)
-        # 临日月建
+        # 臨日月建
         ln.is_on_month = (ln.zhi == board.month_zhi)
         ln.is_on_day = (ln.zhi == board.day_zhi)
-        # 暗动 / 日破（静爻被日冲）
-        if ln.day_strike and not ln.is_moving:
-            if ln.prosperous:
-                ln.dark_move = True
-            else:
-                ln.day_break = True
-        # 动爻被日冲（《增删卜易·日辰章》：旺动愈动，衰动冲散）
+        # 暗動 / 日破：靜爻被日沖，須待六爻裝完（要看動爻生助），統一於 _detect_dark_move 判定
+        # 動爻被日沖（《增刪卜易·日辰章》：旺動愈動，衰動沖散）
         if ln.day_strike and ln.is_moving:
-            ln.day_strike_moving = "动而愈动" if ln.prosperous else "动而冲散"
+            ln.day_strike_moving = "動而愈動" if ln.prosperous else "動而沖散"
 
-    # 动爻变爻
+    # 動爻變爻
     ch_lower_gan, ch_upper_gan = BAGUA_NAGAN[changed_lower_gua][0], BAGUA_NAGAN[changed_upper_gua][1]
     ch_lower_zhi = BAGUA_NAZHI[changed_lower_gua][:3]
     ch_upper_zhi = BAGUA_NAZHI[changed_upper_gua][3:]
@@ -428,19 +564,19 @@ def cast_board(hexagram, moving, month_zhi, day_gz, yongshen_qin=None):
         ln.change_wx = DIZHI_WUXING[ln.change_zhi]
         ln.change_qin = liuqin(ln.change_wx, board.palace_wx)
 
-        # 化进退 / 回头生克
+        # 化進退 / 回頭生克
         if ln.wx == ln.change_wx:
             if JINSHEN.get(ln.zhi) == ln.change_zhi:
-                ln.jin_tui = "化进神"
+                ln.jin_tui = "化進神"
             elif TUISHEN.get(ln.zhi) == ln.change_zhi:
                 ln.jin_tui = "化退神"
             else:
                 ln.jin_tui = "化比和"
         else:
             if i_sheng(ln.change_wx) == ln.wx:
-                ln.jin_tui = "化回头生"
+                ln.jin_tui = "化回頭生"
             elif i_ke(ln.change_wx) == ln.wx:
-                ln.jin_tui = "化回头克"
+                ln.jin_tui = "化回頭克"
             else:
                 ln.jin_tui = "化他"
 
@@ -454,20 +590,23 @@ def cast_board(hexagram, moving, month_zhi, day_gz, yongshen_qin=None):
             reasons.append("日墓")
         for other in board.lines:
             if other.is_moving and other.zhi == mu and other.position != ln.position:
-                reasons.append("动爻墓")
+                reasons.append("動爻墓")
         if ln.is_moving and ln.change_zhi == mu:
             reasons.append("化墓")
         ln.in_grave = reasons
-        # 空墓：入墓 且 墓库地支落空亡
+        # 空墓：入墓 且 墓庫地支落空亡
         if reasons and mu in board.xunkong:
             ln.grave_is_void = True
 
-    # 用神四神角色 + 元神/忌神有力无力（以用神爻五行为基准）
+    # 暗動 / 日破（靜爻逢日沖：旺相或得動爻生助 → 暗動，否則日破）
+    _detect_dark_move(board)
+
+    # 用神四神角色 + 元神/忌神有力無力（以用神爻五行為基準）
     if yongshen_qin:
         for ln in board.lines:
             if ln.qin == yongshen_qin:
                 board.yongshen_lines.append(ln)
-        # 用神五行基准：取最旺者，否则取第一个
+        # 用神五行基準：取最旺者，否則取第一個
         if board.yongshen_lines:
             ys_sorted = sorted(
                 board.yongshen_lines,
@@ -483,16 +622,17 @@ def cast_board(hexagram, moving, month_zhi, day_gz, yongshen_qin=None):
             ln.role = yongshen_role(ln.wx, yongshen_wx) if yongshen_wx else None
             if ln in board.yongshen_lines:
                 ln.role = "用神"
-            # 元神/忌神判有力无力
+            # 元神/忌神判有力無力
             if ln.role in ("元神", "忌神"):
                 eff, reason = _spirit_effective(ln, board)
                 ln.effective = eff
                 ln.effective_reason = reason
 
-    # —— 卦级分析：卦变生克 / 反伏 / 三合 / 六合六冲卦 ——
+    # —— 卦級分析：卦變生克 / 反伏 / 三合 / 六合六沖卦 ——
     _analyze_gua_bian(board)
     _detect_fu_fan_yin(board)
     _detect_sanhe(board)
+    _detect_sanhe_local(board)
     _detect_liuhe_liuchong(board, changed_lower_gua, changed_upper_gua)
 
     return board

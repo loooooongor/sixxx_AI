@@ -1,4 +1,4 @@
-"""pytest 配置：确保 src/ 在 import 路径上。"""
+"""pytest 配置：確保 src/ 在 import 路徑上。"""
 
 import sys
 from pathlib import Path

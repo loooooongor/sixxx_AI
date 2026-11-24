@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""六爻 HTML 报告生成器。
+"""六爻 HTML 報告生成器。
 
-读取一个结构化的卦例 JSON，调用排盘引擎排盘，生成一份古典卷宗风格的 HTML 报告。
+讀取一個結構化的卦例 JSON，呼叫排盤引擎排盤，生成一份古典卷宗風格的 HTML 報告。
 
 示例：
-    python tools/generate_report.py examples/01-是否旺己-地泽临之复.json -o outputs/report.html
+    python tools/generate_report.py examples/01-是否旺己-地澤臨之復.json -o outputs/report.html
 """
 
 import argparse
@@ -19,17 +19,17 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 from liuyao import cast_board
 from liuyao.format import yao_name
 
-# 术语表（点击弹解释）
+# 術語表（點選彈解釋）
 GLOSSARY = json.loads(
     Path(__file__).resolve().parent.parent.joinpath("data", "glossary.json")
     .read_text(encoding="utf-8")
 )
-# 长词优先匹配，避免短词误中（如"暗动"先于"动"）
+# 長詞優先匹配，避免短詞誤中（如"暗動"先於"動"）
 _TERM_RE = re.compile("|".join(re.escape(k) for k in sorted(GLOSSARY, key=len, reverse=True)))
 
 
 def link_terms(text):
-    """对已 esc 的纯文本，把其中术语包成可点击 span（点击弹解释浮层）。"""
+    """對已 esc 的純文字，把其中術語包成可點選 span（點選彈解釋浮層）。"""
     def repl(m):
         k = m.group(0)
         return f'<span class="term" data-term="{k}" tabindex="0">{k}</span>'
@@ -189,7 +189,7 @@ body{
 .summary h3{font-family:'KaiTi',serif;font-size:24px;color:var(--vermilion);margin-bottom:12px;letter-spacing:2px}
 .summary p{color:var(--ink);font-size:17.5px;line-height:2}
 .notice{text-align:center;font-size:14.5px;color:var(--ink-fade);border-top:1px dashed var(--border);padding-top:22px;margin-top:30px;line-height:1.9}
-/* 应验纪实 · 应期追踪 */
+/* 應驗紀實 · 應期追蹤 */
 .timeline{margin:4px 0 2px}
 .tl-item{position:relative;padding:0 0 14px 24px;border-left:2px solid var(--border-strong);margin-left:8px}
 .tl-item:last-child{border-left-color:transparent;padding-bottom:2px}
@@ -221,9 +221,9 @@ def esc(s):
 
 
 def render_yao_bars(yin_yang, moving=False):
-    cls = "bars solid" if yin_yang == "阳" else "bars split"
+    cls = "bars solid" if yin_yang == "陽" else "bars split"
     yao_cls = "yao moving" if moving else "yao"
-    if yin_yang == "阳":
+    if yin_yang == "陽":
         bars = '<div class="bars solid"><span class="b"></span></div>'
     else:
         bars = '<div class="bars split"><span class="b"></span><span class="b"></span></div>'
@@ -231,15 +231,15 @@ def render_yao_bars(yin_yang, moving=False):
 
 
 def render_hex_diagram(board):
-    """主卦 → 变卦 大图。每爻含 爻位/阴阳爻/六神·六亲·纳甲，卦名附六合/六冲标注。
+    """主卦 → 變卦 大圖。每爻含 爻位/陰陽爻/六神·六親·納甲，卦名附六合/六沖標註。
 
-    主卦、变卦同爻左右并排，一行即可横向对比变化。
+    主卦、變卦同爻左右並排，一行即可橫向對比變化。
     """
     def suffix(is_he, is_chong):
         if is_he:
             return "（六合卦）"
         if is_chong:
-            return "（六冲卦）"
+            return "（六沖卦）"
         return ""
 
     def block(title, tag, yin_yangs, moving_set, info_of):
@@ -248,7 +248,7 @@ def render_hex_diagram(board):
             yy = yin_yangs[pos - 1]
             mv = pos in moving_set
             pos_label = yao_name(pos, yy)
-            bars = ('<div class="bars solid"><span class="b"></span></div>' if yy == "阳"
+            bars = ('<div class="bars solid"><span class="b"></span></div>' if yy == "陽"
                     else '<div class="bars split"><span class="b"></span><span class="b"></span></div>')
             yao_cls = "yao moving" if mv else "yao"
             info = info_of(pos)
@@ -258,8 +258,8 @@ def render_hex_diagram(board):
             for t in info.get("tags", []):
                 if t == "世":
                     cls, dt = "ytag shi term", ' data-term="世爻" tabindex="0"'
-                elif t == "应":
-                    cls, dt = "ytag ying term", ' data-term="应爻" tabindex="0"'
+                elif t == "應":
+                    cls, dt = "ytag ying term", ' data-term="應爻" tabindex="0"'
                 elif t in GLOSSARY:
                     cls, dt = "ytag term", f' data-term="{t}" tabindex="0"'
                 else:
@@ -276,7 +276,7 @@ def render_hex_diagram(board):
 
     yin_yangs = [ln.yin_yang for ln in board.lines]
     moving_set = {ln.position for ln in board.moving_lines}
-    changed_yy = [("阴" if yy == "阳" else "阳") if (i + 1) in moving_set else yy
+    changed_yy = [("陰" if yy == "陽" else "陽") if (i + 1) in moving_set else yy
                   for i, yy in enumerate(yin_yangs)]
 
     def main_info(pos):
@@ -294,11 +294,11 @@ def render_hex_diagram(board):
 
     from liuyao.data import find_hexagram
     ch_rec = find_hexagram(board.changed_hexagram) if board.changed_hexagram else None
-    ch_pal = f'{ch_rec["palace"]}宫·{ch_rec["palace_wx"]}' if ch_rec else "—"
+    ch_pal = f'{ch_rec["palace"]}宮·{ch_rec["palace_wx"]}' if ch_rec else "—"
     left_title = board.hexagram + suffix(board.is_liuhe_gua, board.is_liuchong_gua)
-    right_title = (board.changed_hexagram or "变卦") + suffix(board.changed_is_liuhe, board.changed_is_liuchong)
-    left = block(left_title, f"主卦 · {board.palace}宫·{board.palace_wx}", yin_yangs, moving_set, main_info)
-    right = block(right_title, f"变卦 · {ch_pal}", changed_yy, moving_set, changed_info)
+    right_title = (board.changed_hexagram or "變卦") + suffix(board.changed_is_liuhe, board.changed_is_liuchong)
+    left = block(left_title, f"主卦 · {board.palace}宮·{board.palace_wx}", yin_yangs, moving_set, main_info)
+    right = block(right_title, f"變卦 · {ch_pal}", changed_yy, moving_set, changed_info)
     mid = f'<div class="hex-mid"><div class="arrow">➜</div>{render_gua_tags(board)}</div>'
     return f'<div class="hex-display">{left}{mid}{right}</div>'
 
@@ -307,21 +307,21 @@ def render_board_table(board):
     rows = []
     for pos in range(6, 0, -1):
         ln = board.line(pos)
-        symbol = "———" if ln.yin_yang == "阳" else "— —"
+        symbol = "———" if ln.yin_yang == "陽" else "— —"
         tags = []
         cls = []
         if ln.is_world:
             tags.append(("世", "tag-red"))
         if ln.is_response:
-            tags.append(("应", "tag-red"))
+            tags.append(("應", "tag-red"))
         if ln.is_moving:
-            tags.append(("动", "tag-red"))
+            tags.append(("動", "tag-red"))
         if ln.void:
             tags.append(("空", "tag-gold"))
         if ln.month_break:
             tags.append(("月破", "tag-gold"))
         if ln.dark_move:
-            tags.append(("暗动·生财" if ln.role == "元神" else "暗动", "tag-jade"))
+            tags.append(("暗動·生財" if ln.role == "元神" else "暗動", "tag-jade"))
         if ln.day_break:
             tags.append(("日破", "tag-gold"))
         if ln.jin_tui:
@@ -330,7 +330,7 @@ def render_board_table(board):
             tags.append((g, "tag-red"))
         if ln.grave_is_void:
             tags.append(("空墓", "tag-red"))
-        tag_html = "".join(f'<span class="tag {c}">{esc(t)}</span>' for t, c in tags) or "静"
+        tag_html = "".join(f'<span class="tag {c}">{esc(t)}</span>' for t, c in tags) or "靜"
         change = ""
         if ln.is_moving and ln.change_zhi:
             change = f"{ln.change_gan}{ln.change_zhi}({ln.change_qin})"
@@ -342,8 +342,8 @@ def render_board_table(board):
             f'<td class="{qin_cls}">{esc(ln.gan)}{esc(ln.zhi)}{esc(ln.wx)}</td>'
             f'<td>{tag_html}</td><td>{esc(change)}</td></tr>'
         )
-    head = ("<tr><th>六神</th><th>爻位</th><th>卦象</th><th>六亲</th><th>纳甲</th>"
-            "<th>标注</th><th>变卦</th></tr>")
+    head = ("<tr><th>六神</th><th>爻位</th><th>卦象</th><th>六親</th><th>納甲</th>"
+            "<th>標註</th><th>變卦</th></tr>")
     return f'<div class="board"><table>{head}{"".join(rows)}</table></div>'
 
 
@@ -351,35 +351,35 @@ def render_params(board):
     def p(k, v, red=False):
         c = "red" if red else ""
         return f'<div class="param"><div class="k">{esc(k)}</div><div class="v {c}">{esc(v)}</div></div>'
-    moving = "、".join(yao_name(l.position, l.yin_yang) for l in board.moving_lines) or "无"
+    moving = "、".join(yao_name(l.position, l.yin_yang) for l in board.moving_lines) or "無"
     sanhe_hint = ""
     items = [
         p("月建", f"{board.month_zhi}·{board.month_wx}"),
         p("日辰", f"{board.day_gz}（{board.day_wx}）"),
         p("空亡", "、".join(board.xunkong)),
-        p("动爻", moving, red=True),
-        p("世/应", f"世{board.world_pos}·应{board.response_pos}"),
+        p("動爻", moving, red=True),
+        p("世/應", f"世{board.world_pos}·應{board.response_pos}"),
         p("用神", board.yongshen_qin or "—", red=bool(board.yongshen_qin)),
     ]
     return f'<div class="params">{"".join(items)}</div>'
 
 
 def render_gua_tags(board):
-    """卦级特征标签条（附在卦象图下）：六合卦/六冲卦/反伏/卦变生克。"""
+    """卦級特徵標籤條（附在卦象圖下）：六合卦/六沖卦/反伏/卦變生克。"""
     tags = []
     if board.is_liuhe_gua:
         tags.append(("主卦·六合卦", "tag-jade"))
     if board.is_liuchong_gua:
-        tags.append(("主卦·六冲卦", "tag-red"))
+        tags.append(("主卦·六沖卦", "tag-red"))
     if board.changed_is_liuhe:
-        tags.append(("变卦·六合卦", "tag-jade"))
+        tags.append(("變卦·六合卦", "tag-jade"))
     if board.changed_is_liuchong:
-        tags.append(("变卦·六冲卦", "tag-red"))
+        tags.append(("變卦·六沖卦", "tag-red"))
     if board.fu_yin:
         tags.append(("伏吟", "tag-gold"))
     if board.fan_yin:
         tags.append(("反吟", "tag-gold"))
-    if board.gua_bian and board.gua_bian != "变卦未明":
+    if board.gua_bian and board.gua_bian != "變卦未明":
         tags.append((board.gua_bian, "tag-gold"))
     if not tags:
         return ""
@@ -388,9 +388,9 @@ def render_gua_tags(board):
 
 
 def render_meta_bar(board):
-    """大图上方的全局信息条：月建/日辰/旬空/用神。
+    """大圖上方的全域性資訊條：月建/日辰/旬空/用神。
 
-    世应、动爻、空亡之爻、化退、入墓等已并入大图每爻标注，此处只留全局参数。
+    世應、動爻、空亡之爻、化退、入墓等已併入大圖每爻標註，此處只留全域性引數。
     """
     items = [
         ("月建", f"{board.month_zhi}·{board.month_wx}", False),
@@ -409,7 +409,7 @@ def render_meta_bar(board):
 
 
 def render_overview(overview):
-    """渲染卦象总览的卦辞/爻辞 + 卦象/动爻 LLM 推演讲解。"""
+    """渲染卦象總覽的卦辭/爻辭 + 卦象/動爻 LLM 推演講解。"""
     if not overview:
         return ""
     out = []
@@ -423,16 +423,16 @@ def render_overview(overview):
         )
 
     if overview.get("gua_ci"):
-        out.append(f'<div class="ci-block"><div class="ci-cap">卦　辞</div>'
+        out.append(f'<div class="ci-block"><div class="ci-cap">卦　辭</div>'
                    f'{ci_items(overview["gua_ci"])}</div>')
     if overview.get("yao_ci"):
-        out.append(f'<div class="ci-block"><div class="ci-cap">动爻爻辞</div>'
+        out.append(f'<div class="ci-block"><div class="ci-cap">動爻爻辭</div>'
                    f'{ci_items(overview["yao_ci"])}</div>')
     if overview.get("gua_explanation"):
         out.append(f'<div class="card"><div class="ct">卦象推演</div>'
                    f'<p>{esc(overview["gua_explanation"])}</p></div>')
     if overview.get("moving_explanation"):
-        out.append(f'<div class="card"><div class="ct">动爻推演</div>'
+        out.append(f'<div class="card"><div class="ct">動爻推演</div>'
                    f'<p>{esc(overview["moving_explanation"])}</p></div>')
     return "".join(out)
 
@@ -459,23 +459,23 @@ def render_sections(sections):
 
 def render_verdict(verdict):
     paras = "".join(f"<p>{link_terms(esc(p))}</p>" for p in verdict)
-    return f'<div class="verdict"><div class="verdict-title">断　曰</div><div class="verdict-body">{paras}</div></div>'
+    return f'<div class="verdict"><div class="verdict-title">斷　曰</div><div class="verdict-body">{paras}</div></div>'
 
 
 def _grade_badge(grade):
-    if any(k in grade for k in ("事前", "强", "已验")):
+    if any(k in grade for k in ("事前", "強", "已驗")):
         return "badge-strong"
     return "badge-medium"
 
 
 def render_verification(ver):
-    """应验纪实：事实时间线 + 逐象对应表（带证据分级徽章）。
+    """應驗紀實：事實時間線 + 逐象對應表（帶證據分級徽章）。
 
-    JSON 格式（可选，旧案例无此字段则整节不渲染）：
+    JSON 格式（可選，舊案例無此欄位則整節不渲染）：
       "verification": {
         "subtitle": "……",
         "timeline":  [{"date": "…", "event": "…"}],
-        "mappings":  [{"xiang": "卦象", "fact": "事实", "grade": "事前断语·已验|事后对账"}],
+        "mappings":  [{"xiang": "卦象", "fact": "事實", "grade": "事前斷語·已驗|事後對帳"}],
         "notes": ["……"]
       }
     """
@@ -486,7 +486,7 @@ def render_verification(ver):
         for t in ver.get("timeline", [])
     )
     if tl:
-        out.append(f'<div class="card"><div class="ct">事实时间线</div><div class="timeline">{tl}</div></div>')
+        out.append(f'<div class="card"><div class="ct">事實時間線</div><div class="timeline">{tl}</div></div>')
 
     rows = "".join(
         f'<tr><td class="xs">{link_terms(esc(m["xiang"]))}</td>'
@@ -498,29 +498,29 @@ def render_verification(ver):
         sub = f'<div class="cs">{esc(ver.get("subtitle", ""))}</div>' if ver.get("subtitle") else ""
         notes = "".join(f'<p>{link_terms(esc(n))}</p>' for n in ver.get("notes", []))
         out.append(
-            f'<div class="card"><div class="ct">逐象对应</div>{sub}'
-            f'<table class="vmap-table"><thead><tr><th>卦象</th><th>事实</th><th>证据分级</th></tr></thead>'
+            f'<div class="card"><div class="ct">逐象對應</div>{sub}'
+            f'<table class="vmap-table"><thead><tr><th>卦象</th><th>事實</th><th>證據分級</th></tr></thead>'
             f'<tbody>{rows}</tbody></table>{notes}</div>'
         )
     return "".join(out)
 
 
 def render_outlook(items):
-    """应期追踪：时间窗 / 卦理预期 / 状态（待验·警示 徽章）。
+    """應期追蹤：時間窗 / 卦理預期 / 狀態（待驗·警示 徽章）。
 
-    JSON 格式（可选）："outlook": [{"window": "…", "expect": "…", "status": "待验|警示"}]
+    JSON 格式（可選）："outlook": [{"window": "…", "expect": "…", "status": "待驗|警示"}]
     """
     rows = "".join(
         f'<tr><td class="xs">{esc(it["window"])}</td>'
         f'<td class="fx">{link_terms(esc(it["expect"]))}</td>'
         f'<td class="gd"><span class="badge {"badge-warn" if it.get("status") == "警示" else "badge-wait"}">'
-        f'{esc(it.get("status", "待验"))}</span></td></tr>'
+        f'{esc(it.get("status", "待驗"))}</span></td></tr>'
         for it in items
     )
     if not rows:
         return ""
-    return (f'<div class="card"><div class="ct">应期追踪</div>'
-            f'<table class="vmap-table"><thead><tr><th>时间窗</th><th>卦理预期</th><th>状态</th></tr></thead>'
+    return (f'<div class="card"><div class="ct">應期追蹤</div>'
+            f'<table class="vmap-table"><thead><tr><th>時間窗</th><th>卦理預期</th><th>狀態</th></tr></thead>'
             f'<tbody>{rows}</tbody></table></div>')
 
 
@@ -530,18 +530,18 @@ def generate_html(case, board):
                    f'<span class="accent">{esc(m["day"])}日</span>'
                    f'　｜　{esc(m["question"])}')
 
-    # 各节内容 + 动态编号（有 verification / outlook 时顺延为 肆 / 伍）
+    # 各節內容 + 動態編號（有 verification / outlook 時順延為 肆 / 伍）
     secs = [
-        ("卦象总览",
+        ("卦象總覽",
          render_meta_bar(board) + render_hex_diagram(board) + render_overview(case.get("overview"))),
-        ("分层解析", render_sections(case["sections"])),
-        ("整体推演 · 断语", render_verdict(case["verdict"])),
+        ("分層解析", render_sections(case["sections"])),
+        ("整體推演 · 斷語", render_verdict(case["verdict"])),
     ]
     if case.get("verification"):
-        secs.append(("应验纪实", render_verification(case["verification"])))
+        secs.append(("應驗紀實", render_verification(case["verification"])))
     if case.get("outlook"):
-        secs.append(("应期追踪", render_outlook(case["outlook"])))
-    nums = ["壹", "贰", "叁", "肆", "伍", "陆"]
+        secs.append(("應期追蹤", render_outlook(case["outlook"])))
+    nums = ["壹", "貳", "叄", "肆", "伍", "陸"]
     sections_html = "".join(
         f'<div class="section"><div class="section-title"><div class="num">{nums[i]}</div>'
         f'<h2>{esc(t)}</h2><div class="line"></div></div>{body}</div>'
@@ -558,21 +558,21 @@ def generate_html(case, board):
   <div class="seal">卦</div>
   <div class="title-sub">六爻卦象解析</div>
   <h1 class="title-main">{esc(case['subtitle'].split(' · ')[0])}</h1>
-  <div class="divider"><span>✦</span><span>九二爻动 · 变</span><span>✦</span></div>
-  <h1 class="title-main red">{esc(board.changed_hexagram or '变卦')}</h1>
+  <div class="divider"><span>✦</span><span>九二爻動 · 變</span><span>✦</span></div>
+  <h1 class="title-main red">{esc(board.changed_hexagram or '變卦')}</h1>
   <div class="header-meta">{header_meta}</div>
 </header>
 
 {sections_html}
 
 <div class="summary">
-  <h3>一语总括</h3>
+  <h3>一語總括</h3>
   <p>{link_terms(esc(case['summary']))}</p>
 </div>
 
 <div class="notice">※ 理性提醒 ※<br>{esc(case.get('disclaimer', ''))}</div>
 
-<div class="footer">六爻卦象解析报告<span class="orn">✦</span>{esc(case['subtitle'])}<span class="orn">✦</span>仅供参考</div>
+<div class="footer">六爻卦象解析報告<span class="orn">✦</span>{esc(case['subtitle'])}<span class="orn">✦</span>僅供參考</div>
 
 <div id="termPop" class="popover"></div>
 {JS_BLOCK}
@@ -581,9 +581,9 @@ def generate_html(case, board):
 
 
 def main():
-    p = argparse.ArgumentParser(description="六爻 HTML 报告生成器")
-    p.add_argument("case_json", help="卦例 JSON 路径")
-    p.add_argument("-o", "--output", default="outputs/report.html", help="输出 HTML 路径")
+    p = argparse.ArgumentParser(description="六爻 HTML 報告生成器")
+    p.add_argument("case_json", help="卦例 JSON 路徑")
+    p.add_argument("-o", "--output", default="outputs/report.html", help="輸出 HTML 路徑")
     args = p.parse_args()
 
     case = json.loads(Path(args.case_json).read_text(encoding="utf-8"))
@@ -596,7 +596,7 @@ def main():
     out_path = Path(args.output)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(generate_html(case, board), encoding="utf-8")
-    print(f"已生成报告：{out_path}（主卦 {board.hexagram} → {board.changed_hexagram}）")
+    print(f"已生成報告：{out_path}（主卦 {board.hexagram} → {board.changed_hexagram}）")
 
 
 if __name__ == "__main__":

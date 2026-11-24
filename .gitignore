@@ -1,4 +1,4 @@
-# Python
+﻿# Python
 __pycache__/
 *.py[cod]
 *$py.class
@@ -35,5 +35,34 @@ desktop.ini
 outputs/
 *.log
 
-# 私人卦例与应验记录（含真实姓名/地点，仅本地留存，永不提交）
+# 私人卦例與應驗紀錄（含真實姓名/地點，僅本地留存，永不提交）
 private/
+
+# ── 六爻 AI（ai/ 目錄）──────────────────────────────────────
+
+# LLM 設定含 API 金鑰，永不提交
+ai/config/llm.json
+ai/config/*.json
+!ai/config/.gitkeep
+
+# 環境變數檔
+.env
+.env.local
+ai/.env
+
+# 本機暫存與測試產物
+ai/.tmp/
+ai/outputs/
+preview.html
+ai/_test_board.json
+ai/tests/_mock_llm_last_request.json
+ai/_probe*
+probe.out
+probe.err
+pip-out.txt
+pip-err.txt
+wheels/
+
+# 繁體化前的簡體備份
+backup_simplified/
+

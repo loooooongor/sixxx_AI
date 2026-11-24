@@ -1,8 +1,8 @@
-"""六爻排盘引擎。
+"""六爻排盤引擎。
 
 快速使用：
     from liuyao import cast_board
-    board = cast_board("地泽临", moving=2, month_zhi="未", day_gz="辛卯", yongshen_qin="妻财")
+    board = cast_board("地澤臨", moving=2, month_zhi="未", day_gz="辛卯", yongshen_qin="妻財")
     print(board.line(2).jin_tui)   # "化退神"
 """
 

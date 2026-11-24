@@ -1,11 +1,11 @@
-"""卦盘文本格式化输出。"""
+"""卦盤文字格式化輸出。"""
 
 from .board import Board
 
 
 def yao_name(pos, yin_yang):
-    """生成爻位名：阳爻九X，阴爻六X。"""
-    nine_six = "九" if yin_yang == "阳" else "六"
+    """生成爻位名：陽爻九X，陰爻六X。"""
+    nine_six = "九" if yin_yang == "陽" else "六"
     if pos == 1:
         return "初" + nine_six
     if pos == 6:
@@ -14,30 +14,30 @@ def yao_name(pos, yin_yang):
 
 
 def format_board(board: Board) -> str:
-    """把卦盘格式化为文本表格（上爻在上）。"""
+    """把卦盤格式化為文字表格（上爻在上）。"""
     out = []
-    out.append(f"占时：{board.month_zhi}月 {board.day_gz}日（旬空：{'、'.join(board.xunkong)}）")
+    out.append(f"占時：{board.month_zhi}月 {board.day_gz}日（旬空：{'、'.join(board.xunkong)}）")
     out.append(
-        f"主卦：{board.hexagram}（{board.palace}宫·{board.palace_wx}）"
-        f" → 变卦：{board.changed_hexagram or '（无）'}"
+        f"主卦：{board.hexagram}（{board.palace}宮·{board.palace_wx}）"
+        f" → 變卦：{board.changed_hexagram or '（無）'}"
     )
-    moving = "、".join(yao_name(l.position, l.yin_yang) for l in board.moving_lines) or "无"
-    out.append(f"世在{board.world_pos}爻，应在{board.response_pos}爻；动爻：{moving}")
+    moving = "、".join(yao_name(l.position, l.yin_yang) for l in board.moving_lines) or "無"
+    out.append(f"世在{board.world_pos}爻，應在{board.response_pos}爻；動爻：{moving}")
     if board.yongshen_qin:
         ys = "、".join(f"{yao_name(l.position, l.yin_yang)}({l.gan}{l.zhi})" for l in board.yongshen_lines)
         out.append(f"用神（{board.yongshen_qin}）：{ys}")
     out.append("")
 
-    header = f"{'六神':<4} {'爻位':<5} {'卦象':<5} {'六亲':<4} {'纳甲':<6} {'标注'}"
+    header = f"{'六神':<4} {'爻位':<5} {'卦象':<5} {'六親':<4} {'納甲':<6} {'標註'}"
     out.append(header)
     out.append("-" * 60)
 
     # 上爻在上
     for pos in range(6, 0, -1):
         ln = board.line(pos)
-        symbol = "———" if ln.yin_yang == "阳" else "— —"
+        symbol = "———" if ln.yin_yang == "陽" else "— —"
         tags = ln.label()
-        tag_str = " ".join(tags) if tags else "静"
+        tag_str = " ".join(tags) if tags else "靜"
         change = ""
         if ln.is_moving and ln.change_zhi:
             change = f" → {ln.change_gan}{ln.change_zhi}({ln.change_qin})"
