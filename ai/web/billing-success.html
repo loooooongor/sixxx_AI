@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>付款完成 · 知幾筆記</title>
+<style>
+  :root {
+    --bg: #f7f7f5; --card: #fff; --ink: #202024; --ink-2: #4b4b52;
+    --ink-3: #77777f; --line: #e4e4df; --accent: #a83b2f;
+    --serif: "Noto Serif TC", "Songti TC", "PMingLiU", Georgia, serif;
+    --sans: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--sans); line-height: 1.7; }
+  .wrap { width: min(680px, calc(100% - 32px)); margin: 0 auto; padding: 32px 0 60px; }
+  .top { display: flex; align-items: baseline; gap: 12px; padding-bottom: 22px; border-bottom: 1px solid var(--line); }
+  .brand { font-family: var(--serif); font-size: 24px; letter-spacing: .14em; color: var(--ink); text-decoration: none; }
+  .brand small { display: block; margin-top: 3px; font-family: var(--sans); font-size: 9px; letter-spacing: .2em; color: var(--ink-3); }
+  .back { margin-left: auto; color: var(--ink-3); text-decoration: none; font-size: 13px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 34px 30px; margin-top: 40px; }
+  .mark { width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; background: #edf6f0; color: #1a7f4b; font-size: 22px; }
+  h1 { font-family: var(--serif); font-weight: 400; font-size: 30px; letter-spacing: .05em; margin: 18px 0 8px; }
+  .lede { color: var(--ink-3); font-size: 14px; margin: 0 0 26px; }
+  .rows { border-top: 1px solid var(--line); }
+  .row { display: flex; justify-content: space-between; gap: 20px; padding: 13px 0; border-bottom: 1px solid var(--line); font-size: 13.5px; }
+  .row span:first-child { color: var(--ink-3); }
+  .row span:last-child { color: var(--ink); text-align: right; }
+  .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 26px; }
+  .btn { border: 1px solid var(--ink); background: var(--ink); color: #fff; border-radius: 10px; padding: 11px 17px; font-size: 13px; letter-spacing: .06em; text-decoration: none; cursor: pointer; font-family: var(--sans); }
+  .btn.ghost { background: transparent; color: var(--ink); border-color: var(--line); }
+  .btn[disabled] { opacity: .5; cursor: wait; }
+  .error { display: none; margin-top: 14px; padding: 10px 12px; border: 1px solid #e0b4ad; background: #fff8f6; color: #8e3328; border-radius: 8px; font-size: 12.5px; }
+  .note { color: var(--ink-3); font-size: 11.5px; margin-top: 24px; border-left: 2px solid var(--line); padding-left: 12px; }
+  .loading { color: var(--ink-3); font-size: 13px; }
+  @media (max-width: 520px) { .card { padding: 26px 20px; } h1 { font-size: 26px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <a class="brand" href="/">知幾筆記<small>AI六爻解讀</small></a>
+    <a class="back" href="/">回到問卦</a>
+  </div>
+
+  <main class="card">
+    <div class="mark" id="mark">✓</div>
+    <h1 id="title">正在確認付款…</h1>
+    <p class="lede" id="lede">請稍候，正在向 Stripe 確認這筆交易。</p>
+
+    <div class="rows" id="rows" hidden>
+      <div class="row"><span>方案</span><span id="plan">—</span></div>
+      <div class="row"><span>付款狀態</span><span id="payment">—</span></div>
+      <div class="row"><span>訂閱狀態</span><span id="subscription">—</span></div>
+      <div class="row"><span>Email</span><span id="email">—</span></div>
+      <div class="row"><span>金額</span><span id="amount">—</span></div>
+    </div>
+
+    <div id="error" class="error" role="alert"></div>
+
+    <div class="actions">
+      <a class="btn" href="/">開始問卦</a>
+      <button class="btn ghost" type="button" id="portalBtn" hidden>管理訂閱</button>
+      <a class="btn ghost" href="/pricing.html">查看方案</a>
+    </div>
+
+    <p class="note" id="note">
+      目前為 Stripe 測試模式，不會產生真實扣款。若狀態顯示 pending，請稍候重新整理；訂閱的最終狀態以 Stripe webhook 為準。
+    </p>
+  </main>
+</div>
+
+<script>
+(() => {
+  const CUSTOMER_KEY = "liuyao.billing.customer";
+  const params = new URLSearchParams(window.location.search);
+  const sessionId = params.get("session_id");
+  const errorEl = document.getElementById("error");
+  const rows = document.getElementById("rows");
+  const portalBtn = document.getElementById("portalBtn");
+
+  const PLAN_LABEL = { single: "單次解讀", monthly: "月訂" };
+  const PAY_LABEL = { paid: "已付款", unpaid: "尚未付款", no_payment_required: "不需要付款" };
+  const SUB_LABEL = { active: "生效中", trialing: "試用中", past_due: "付款逾期", canceled: "已取消", incomplete: "未完成" };
+
+  function showError(message) {
+    errorEl.textContent = message;
+    errorEl.style.display = "block";
+  }
+
+  function text(id, value) {
+    document.getElementById(id).textContent = value || "—";
+  }
+
+  async function postJSON(url, body) {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.ok) throw new Error(data.error || "請求失敗");
+    return data;
+  }
+
+  async function load() {
+    if (!sessionId) {
+      document.getElementById("title").textContent = "找不到付款紀錄";
+      document.getElementById("lede").textContent = "這個頁面需要 Stripe 回傳的 session_id。請從付款流程重新進入。";
+      document.getElementById("mark").textContent = "!";
+      document.getElementById("mark").style.background = "#fbf0ee";
+      document.getElementById("mark").style.color = "#a83b2f";
+      return;
+    }
+    try {
+      const res = await fetch("/api/stripe/session?session_id=" + encodeURIComponent(sessionId));
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) throw new Error(data.error || "無法讀取付款結果");
+
+      const active = data.payment_status === "paid" || data.payment_status === "no_payment_required" || data.subscription_status === "active" || data.subscription_status === "trialing";
+      document.getElementById("mark").textContent = active ? "✓" : "…";
+      document.getElementById("title").textContent = active ? "付款完成，謝謝你" : "付款正在確認";
+      document.getElementById("lede").textContent = active
+        ? "這筆交易已由 Stripe 確認。你可以在同一瀏覽器管理訂閱與付款方式。"
+        : "Stripe 尚未回傳最終付款狀態。若是延遲付款方式，完成後會自動更新。";
+
+      if (data.customer_id) localStorage.setItem(CUSTOMER_KEY, data.customer_id);
+      rows.hidden = false;
+      text("plan", PLAN_LABEL[data.plan] || data.plan);
+      text("payment", PAY_LABEL[data.payment_status] || data.payment_status);
+      text("subscription", SUB_LABEL[data.subscription_status] || data.subscription_status);
+      text("email", data.email);
+      if (data.amount_total != null) {
+        const amount = (data.amount_total / 100).toFixed(2);
+        text("amount", (data.currency || "hkd").toUpperCase() + " " + amount);
+      }
+      if (data.customer_id) portalBtn.hidden = false;
+    } catch (err) {
+      document.getElementById("title").textContent = "無法確認付款";
+      document.getElementById("lede").textContent = "請回到方案頁再試一次，或稍後重新整理。";
+      showError(err.message || "讀取失敗");
+    }
+  }
+
+  portalBtn.addEventListener("click", async () => {
+    const customerId = localStorage.getItem(CUSTOMER_KEY);
+    if (!customerId) {
+      showError("這個瀏覽器沒有付款紀錄，無法開啟管理頁。");
+      return;
+    }
+    portalBtn.disabled = true;
+    try {
+      const data = await postJSON("/api/stripe/portal", { customer_id: customerId });
+      if (!data.url) throw new Error("Stripe 沒有回傳管理網址");
+      window.location.href = data.url;
+    } catch (err) {
+      showError(err.message || "無法開啟訂閱管理");
+      portalBtn.disabled = false;
+    }
+  });
+
+  load();
+})();
+</script>
+</body>
+</html>

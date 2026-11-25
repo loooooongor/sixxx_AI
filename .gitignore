@@ -68,4 +68,8 @@ wheels/
 
 # 繁體化前的簡體備份
 backup_simplified/
-
+# Stripe / 部署本機檔
+.dsh-bundles/
+.npm-cache/
+.agents/
+ai/data/billing.sqlite3

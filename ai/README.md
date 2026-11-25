@@ -42,11 +42,41 @@ bash ai/start.sh
    - `DEEPSEEK_API_KEY`：你的 API 金鑰（必填）
    - `LIUYAO_LLM_PROVIDER`：`deepseek`（預設）
    - `LIUYAO_LLM_MODEL`：`deepseek-chat`（預設）
+   - 若要收款：`STRIPE_SECRET_KEY`、`STRIPE_PRICE_SINGLE`、`STRIPE_PRICE_MONTHLY`、`STRIPE_WEBHOOK_SECRET`，以及指向正式網域的 `PUBLIC_BASE_URL`
 3. 重新部署。`public/` 會成為靜態網站，`api/` 下每個檔案自動成為 `/api/<檔名>`；依賴在 `requirements.txt`，`vercel.json` 會把知識庫與排盤引擎一起打包，並給 SSE 60 秒。
 
 每次改前端（`ai/web`）後，執行 `python ai/tools/sync_public.py` 更新 `public/`，再提交。
 
 雲端檔案系統唯讀，所以設定面板的「儲存」會回傳 403；金鑰與模型請用上面的環境變數。`/api/read` 是 SSE 串流，Vercel 已支援 WSGI streaming。
+
+---
+
+## 方案與付款（Stripe）
+
+目前提供兩個測試方案，從 `/pricing.html` 進入：
+
+| 方案 | 價格 | 內容 |
+|---|---|---|
+| 單次解讀 | HK$28 | 一次完整 AI 六爻解讀 |
+| 月訂 | HK$98 / 月 | 每月 30 次解讀，Customer Portal 可取消 |
+
+本機設定：
+
+1. 根目錄 `.env` 填入 `STRIPE_SECRET_KEY`、`STRIPE_PRICE_SINGLE`、`STRIPE_PRICE_MONTHLY`；`.env` 已被 git 忽略。
+2. 啟動 `python ai/server.py`，開 <http://127.0.0.1:8848/pricing.html>。
+3. 測試卡號 `4242 4242 4242 4242`，任意未來到期日、任意 CVC。
+4. 付款完成頁是 `/billing-success.html`，會用 Checkout Session 向 Stripe 確認結果。
+
+端點：`POST /api/stripe/checkout`、`POST /api/stripe/portal`、`GET /api/stripe/session`、`POST /api/stripe/webhook`。
+Webhook 需要 `STRIPE_WEBHOOK_SECRET`；本機可用 Stripe CLI：
+
+```bash
+stripe listen --forward-to localhost:8848/api/stripe/webhook
+```
+
+把 CLI 顯示的 `whsec_...` 填入 `.env`。目前沒有登入，Customer Portal 的 customer ID 存在瀏覽器 localStorage；正式上線應改成登入帳號＋Postgres，並以 webhook 的 subscription 狀態作為 entitlement 來源。SQLite 只適合本機，Vercel 的唯讀檔案系統不能寫入。
+
+稅務：目前**沒有啟用 Stripe Tax**（先不代收稅）。若日後要對台灣／香港或海外客戶代收稅，需先設定稅務註冊、product tax code 與 price tax behavior，再開 `automatic_tax`。
 
 ---
 

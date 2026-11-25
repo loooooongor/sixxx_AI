@@ -33,7 +33,8 @@ def digest(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-for rel in ("index.html", "assets/app.css", "assets/app.js"):
+for rel in ("index.html", "pricing.html", "billing-success.html",
+            "assets/app.css", "assets/app.js"):
     src = AI_DIR / "web" / rel
     dst = ROOT / "public" / rel
     check(f"public/{rel} 存在", dst.is_file(), True)

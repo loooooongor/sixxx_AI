@@ -265,6 +265,12 @@ button { font-family: inherit; }
   color: var(--ink-4);
   opacity: .78;
 }
+.foot-link {
+  color: var(--ink-3);
+  text-decoration: none;
+  border-bottom: 1px solid var(--line-2);
+}
+.foot-link:hover { color: var(--accent); border-bottom-color: var(--accent); }
 
 /* ═══════════════════ 右：對話 ═══════════════════ */
 

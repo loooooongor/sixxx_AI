@@ -4,5 +4,12 @@
     "api/*.py": {
       "maxDuration": 60
     }
-  }
+  },
+  "rewrites": [
+    { "source": "/api/stripe/checkout", "destination": "/api/stripe_checkout" },
+    { "source": "/api/stripe/portal", "destination": "/api/stripe_portal" },
+    { "source": "/api/stripe/session", "destination": "/api/stripe_session" },
+    { "source": "/api/stripe/entitlement", "destination": "/api/stripe_entitlement" },
+    { "source": "/api/stripe/webhook", "destination": "/api/stripe_webhook" }
+  ]
 }

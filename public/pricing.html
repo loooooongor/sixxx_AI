@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>方案與付款 · 知幾筆記</title>
+<style>
+  :root {
+    --bg: #f7f7f5;
+    --card: #ffffff;
+    --ink: #202024;
+    --ink-2: #4b4b52;
+    --ink-3: #77777f;
+    --line: #e4e4df;
+    --accent: #a83b2f;
+    --serif: "Noto Serif TC", "Songti TC", "PMingLiU", Georgia, serif;
+    --sans: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: var(--sans); line-height: 1.7;
+  }
+  .wrap { width: min(920px, calc(100% - 40px)); margin: 0 auto; padding: 34px 0 60px; }
+  .top { display: flex; align-items: baseline; gap: 12px; padding-bottom: 22px; border-bottom: 1px solid var(--line); }
+  .brand { font-family: var(--serif); font-size: 24px; letter-spacing: .14em; color: var(--ink); text-decoration: none; }
+  .brand small { display: block; margin-top: 3px; font-family: var(--sans); font-size: 9px; letter-spacing: .2em; color: var(--ink-3); }
+  .back { margin-left: auto; color: var(--ink-3); text-decoration: none; font-size: 13px; }
+  .back:hover { color: var(--ink); }
+  h1 { font-family: var(--serif); font-weight: 400; font-size: clamp(28px, 4.2vw, 42px); letter-spacing: .05em; line-height: 1.35; margin: 42px 0 10px; }
+  .lede { color: var(--ink-3); margin: 0 0 34px; font-size: 14px; }
+  .plans { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+  .plan {
+    background: var(--card); border: 1px solid var(--line); border-radius: 18px;
+    padding: 28px 26px 24px; display: flex; flex-direction: column; min-height: 340px;
+  }
+  .plan.featured { border-color: #c9a49a; box-shadow: 0 12px 40px rgba(80, 40, 30, .06); }
+  .plan-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .plan-name { font-size: 15px; letter-spacing: .08em; color: var(--ink-2); }
+  .tag { font-size: 9px; letter-spacing: .14em; color: var(--accent); border: 1px solid #d8b6ad; border-radius: 999px; padding: 2px 9px; }
+  .price { margin: 18px 0 4px; font-family: var(--serif); font-size: 40px; letter-spacing: .02em; line-height: 1.1; }
+  .price span { font-family: var(--sans); font-size: 12px; color: var(--ink-3); letter-spacing: .04em; margin-left: 6px; }
+  .plan p { color: var(--ink-3); font-size: 13px; margin: 0 0 18px; min-height: 44px; }
+  ul { list-style: none; padding: 0; margin: 0 0 24px; display: grid; gap: 9px; }
+  li { position: relative; padding-left: 18px; font-size: 13px; color: var(--ink-2); }
+  li::before { content: "・"; position: absolute; left: 0; color: var(--accent); }
+  .btn {
+    margin-top: auto; width: 100%; border: 1px solid var(--ink); background: var(--ink);
+    color: #fff; border-radius: 10px; padding: 12px 16px; font-size: 13px;
+    letter-spacing: .08em; cursor: pointer; font-family: var(--sans);
+  }
+  .btn:hover { background: #000; }
+  .btn.ghost { background: transparent; color: var(--ink); border-color: var(--line); }
+  .btn.ghost:hover { background: #fff; border-color: var(--ink-3); }
+  .btn[disabled] { opacity: .5; cursor: wait; }
+  .manage { margin-top: 30px; padding: 22px 0 0; border-top: 1px solid var(--line); display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .manage p { margin: 0; color: var(--ink-3); font-size: 12px; flex: 1 1 260px; }
+  .manage .btn { width: auto; margin: 0; padding: 9px 15px; font-size: 12px; }
+  .note { margin-top: 26px; color: var(--ink-3); font-size: 11.5px; border-left: 2px solid var(--line); padding-left: 12px; }
+  .note strong { color: var(--ink-2); font-weight: 500; }
+  .error { display: none; margin: 16px 0 0; padding: 10px 12px; border: 1px solid #e0b4ad; background: #fff8f6; color: #8e3328; border-radius: 8px; font-size: 12.5px; }
+  @media (max-width: 620px) {
+    .wrap { width: min(100% - 28px, 520px); padding-top: 24px; }
+    .plans { grid-template-columns: 1fr; }
+    .plan { min-height: 0; }
+    h1 { margin-top: 30px; }
+    .manage .btn { width: 100%; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <a class="brand" href="/">知幾筆記<small>AI六爻解讀</small></a>
+    <a class="back" href="/">← 回到問卦</a>
+  </div>
+
+  <h1>支持知幾，<br>讓每一次問卦都被好好解讀。</h1>
+  <p class="lede">單次購買或月訂，皆由 Stripe 安全處理付款。目前為測試模式。</p>
+
+  <div class="plans">
+    <section class="plan">
+      <div class="plan-head">
+        <span class="plan-name">單次解讀</span>
+      </div>
+      <div class="price">HK$28<span>／一次</span></div>
+      <p>適合偶爾想認真問一件事的時候。</p>
+      <ul>
+        <li>一次完整的 AI 六爻解讀</li>
+        <li>主卦、變卦與應期分析</li>
+        <li>不需要訂閱，不會自動續扣</li>
+      </ul>
+      <button class="btn" type="button" data-plan="single">單次購買</button>
+    </section>
+
+    <section class="plan featured">
+      <div class="plan-head">
+        <span class="plan-name">月訂</span>
+        <span class="tag">推薦</span>
+      </div>
+      <div class="price">HK$98<span>／月</span></div>
+      <p>給持續想看清方向、固定問卦的人。</p>
+      <ul>
+        <li>每月 30 次完整解讀</li>
+        <li>優先使用最新解讀模型</li>
+        <li>可隨時在 Customer Portal 取消</li>
+      </ul>
+      <button class="btn" type="button" data-plan="monthly">開始月訂</button>
+    </section>
+  </div>
+
+  <div id="error" class="error" role="alert"></div>
+
+  <div class="manage">
+    <p>已經訂閱過？在同一瀏覽器開啟，即可管理付款方式、取消或更新訂閱。</p>
+    <button class="btn ghost" type="button" id="portalBtn">管理訂閱</button>
+  </div>
+
+  <p class="note">
+    <strong>測試模式：</strong>請使用測試卡號 <code>4242 4242 4242 4242</code>，任意未來到期日與任意 CVC。
+    正式上線前請把 Stripe 金鑰換成 live key，並設定 webhook。
+  </p>
+</div>
+
+<script>
+(() => {
+  const CUSTOMER_KEY = "liuyao.billing.customer";
+  const errorEl = document.getElementById("error");
+
+  function showError(message) {
+    errorEl.textContent = message;
+    errorEl.style.display = "block";
+  }
+
+  function clearError() {
+    errorEl.textContent = "";
+    errorEl.style.display = "none";
+  }
+
+  async function postJSON(url, body) {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.ok) throw new Error(data.error || "請求失敗");
+    return data;
+  }
+
+  document.querySelectorAll("[data-plan]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      clearError();
+      const plan = btn.dataset.plan;
+      const label = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = "前往 Stripe…";
+      try {
+        const data = await postJSON("/api/stripe/checkout", { plan });
+        if (!data.url) throw new Error("Stripe 沒有回傳付款網址");
+        window.location.href = data.url;
+      } catch (err) {
+        showError(err.message || "無法建立付款流程");
+        btn.disabled = false;
+        btn.textContent = label;
+      }
+    });
+  });
+
+  document.getElementById("portalBtn").addEventListener("click", async (e) => {
+    clearError();
+    const customerId = localStorage.getItem(CUSTOMER_KEY);
+    if (!customerId) {
+      showError("這個瀏覽器沒有付款紀錄。請先用同一瀏覽器完成一次付款，或回到付款完成頁。");
+      return;
+    }
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    try {
+      const data = await postJSON("/api/stripe/portal", { customer_id: customerId });
+      if (!data.url) throw new Error("Stripe 沒有回傳管理網址");
+      window.location.href = data.url;
+    } catch (err) {
+      showError(err.message || "無法開啟訂閱管理");
+      btn.disabled = false;
+    }
+  });
+})();
+</script>
+</body>
+</html>

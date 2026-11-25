@@ -27,7 +27,7 @@ for _p in (ROOT / "src", HERE):
 
 from flask import Flask, Response, jsonify, request, send_from_directory  # noqa: E402
 
-from liuyao_ai import divination, knowledge, llm, prompt  # noqa: E402
+from liuyao_ai import billing, divination, knowledge, llm, prompt  # noqa: E402
 from server import WEB_DIR, board_from_body, parse_when  # noqa: E402
 
 app = Flask(__name__, static_folder=None)
@@ -126,6 +126,16 @@ def index():
     return send_from_directory(WEB_DIR, "index.html")
 
 
+@app.get("/pricing.html")
+def pricing_page():
+    return send_from_directory(WEB_DIR, "pricing.html")
+
+
+@app.get("/billing-success.html")
+def billing_success_page():
+    return send_from_directory(WEB_DIR, "billing-success.html")
+
+
 @app.get("/assets/<path:rel>")
 def asset(rel: str):
     return send_from_directory(WEB_DIR / "assets", rel)
@@ -204,6 +214,50 @@ def save_settings():
 @app.get("/api/glossary")
 def glossary():
     return jsonify({"ok": True, "glossary": knowledge.get_glossary()})
+
+
+@app.get("/api/stripe/session")
+def stripe_session():
+    session_id = request.args.get("session_id", "")
+    return jsonify(billing.session_summary(billing.BillingConfig.load(), session_id))
+
+
+@app.get("/api/stripe/entitlement")
+def stripe_entitlement():
+    customer_id = request.args.get("customer_id", "")
+    store = billing.BillingStore(billing.BillingConfig.load().db_path)
+    try:
+        return jsonify({"ok": True, "entitlement": store.get_entitlement(customer_id)})
+    finally:
+        store.close()
+
+
+@app.post("/api/stripe/checkout")
+def stripe_checkout():
+    body = _read_body()
+    cfg = billing.BillingConfig.load()
+    if not cfg.configured():
+        raise billing.StripeError("尚未設定 Stripe 金鑰或 price ID")
+    result = billing.create_checkout(cfg, str(body.get("plan") or ""), str(body.get("email") or ""))
+    return jsonify({"ok": True, **result})
+
+
+@app.post("/api/stripe/portal")
+def stripe_portal():
+    body = _read_body()
+    result = billing.create_portal(billing.BillingConfig.load(), str(body.get("customer_id") or ""))
+    return jsonify({"ok": True, **result})
+
+
+@app.post("/api/stripe/webhook")
+def stripe_webhook():
+    payload = request.get_data(cache=True)
+    signature = request.headers.get("Stripe-Signature", "")
+    try:
+        event = billing.handle_webhook(billing.BillingConfig.load(), payload, signature)
+    except billing.StripeError as e:
+        return _error(str(e), 400)
+    return jsonify({"ok": True, "type": event.get("type")})
 
 
 @app.post("/api/cast")
@@ -291,6 +345,11 @@ def _on_value_error(e):
 
 @app.errorhandler(llm.LLMError)
 def _on_llm_error(e):
+    return _error(str(e), 502)
+
+
+@app.errorhandler(billing.StripeError)
+def _on_stripe_error(e):
     return _error(str(e), 502)
 
 

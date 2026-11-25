@@ -30,14 +30,14 @@ import traceback
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(HERE))
 
-from liuyao_ai import divination, knowledge, llm, prompt  # noqa: E402
+from liuyao_ai import billing, divination, knowledge, llm, prompt  # noqa: E402
 
 WEB_DIR = HERE / "web"
 HOST = os.environ.get("LIUYAO_HOST", "127.0.0.1")
@@ -232,8 +232,23 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if path in ("/", "/index.html"):
                 return self._serve_static("index.html")
+            if path in ("/pricing.html", "/billing-success.html"):
+                return self._serve_static(path.lstrip("/"))
             if path.startswith("/assets/"):
                 return self._serve_static(path.lstrip("/"))
+            if path == "/api/stripe/session":
+                qs = parse_qs(urlparse(self.path).query)
+                session_id = (qs.get("session_id") or [""])[0]
+                return self._json(billing.session_summary(
+                    billing.BillingConfig.load(), session_id))
+            if path == "/api/stripe/entitlement":
+                qs = parse_qs(urlparse(self.path).query)
+                customer_id = (qs.get("customer_id") or [""])[0]
+                store = billing.BillingStore(billing.BillingConfig.load().db_path)
+                try:
+                    return self._json({"ok": True, "entitlement": store.get_entitlement(customer_id)})
+                finally:
+                    store.close()
             if path == "/api/health":
                 cfg = llm.LLMConfig.load()
                 kb = knowledge.get_kb()
@@ -254,6 +269,10 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/favicon.ico":
                 return self._send(204, b"", "image/x-icon")
             return self._error("找不到此路徑", 404)
+        except ValueError as e:
+            return self._error(str(e), 400)
+        except billing.StripeError as e:
+            return self._error(str(e), 502)
         except Exception as e:                     # noqa: BLE001
             self._log_exc(e)
             return self._error(f"伺服器錯誤：{e}", 500)
@@ -263,6 +282,12 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if path == "/api/settings":
                 return self._handle_settings()
+            if path == "/api/stripe/checkout":
+                return self._handle_stripe_checkout()
+            if path == "/api/stripe/portal":
+                return self._handle_stripe_portal()
+            if path == "/api/stripe/webhook":
+                return self._handle_stripe_webhook()
             if path == "/api/cast":
                 return self._handle_cast()
             if path == "/api/preview":
@@ -274,6 +299,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._error("找不到此路徑", 404)
         except ValueError as e:
             return self._error(str(e), 400)
+        except billing.StripeError as e:
+            return self._error(str(e), 502)
         except llm.LLMError as e:
             return self._error(str(e), 502)
         except Exception as e:                     # noqa: BLE001
@@ -310,6 +337,34 @@ class Handler(BaseHTTPRequestHandler):
 
         cfg.save()
         return self._json({"ok": True, "settings": cfg.public()})
+
+    # —— Stripe ——
+
+    def _handle_stripe_checkout(self) -> None:
+        body = self._read_json()
+        cfg = billing.BillingConfig.load()
+        if not cfg.configured():
+            raise billing.StripeError("尚未設定 Stripe 金鑰或 price ID")
+        result = billing.create_checkout(
+            cfg, str(body.get("plan") or ""), str(body.get("email") or ""))
+        return self._json({"ok": True, **result})
+
+    def _handle_stripe_portal(self) -> None:
+        body = self._read_json()
+        result = billing.create_portal(
+            billing.BillingConfig.load(), str(body.get("customer_id") or ""))
+        return self._json({"ok": True, **result})
+
+    def _handle_stripe_webhook(self) -> None:
+        length = int(self.headers.get("Content-Length") or 0)
+        payload = self.rfile.read(length) if length > 0 else b""
+        signature = self.headers.get("Stripe-Signature") or ""
+        try:
+            event = billing.handle_webhook(
+                billing.BillingConfig.load(), payload, signature)
+        except billing.StripeError as e:
+            return self._error(str(e), 400)
+        return self._json({"ok": True, "type": event.get("type")})
 
     def _build_cast(self, body: dict) -> dict:
         question = str(body.get("question") or "").strip()

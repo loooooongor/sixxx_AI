@@ -23,7 +23,8 @@ def main() -> int:
     if DST.exists():
         shutil.rmtree(DST)
     DST.mkdir(parents=True)
-    shutil.copy2(SRC / "index.html", DST / "index.html")
+    for page in SRC.glob("*.html"):
+        shutil.copy2(page, DST / page.name)
     shutil.copytree(SRC / "assets", DST / "assets")
     print(f"已同步 {SRC} → {DST}")
     return 0

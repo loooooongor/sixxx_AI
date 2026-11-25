@@ -34,6 +34,11 @@ r = client.get("/assets/app.css")
 check("CSS 200", r.status_code, 200)
 check("CSS 非空", len(r.data) > 1000, True)
 
+for page in ("/pricing.html", "/billing-success.html"):
+    r = client.get(page)
+    check(f"{page} 200", r.status_code, 200)
+    check(f"{page} 有品牌", "知幾筆記" in r.get_data(as_text=True), True)
+
 r = client.get("/api/health")
 check("health 200", r.status_code, 200)
 check("health ok", r.get_json().get("ok"), True)
