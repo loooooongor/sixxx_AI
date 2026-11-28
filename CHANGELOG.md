@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - README（中/英）結構樹同步更新。
 
 ### Changed
+- **Deploy（Hobby Function 上限）**: 移除 `api/` 的 13 個 wrapper，改由根目錄 `app.py` 匯出 `ai/wsgi.py` 的 Flask app；Vercel Flask preset 只建立 **1 個 Function**，符合 Hobby 12 個上限。`vercel.json` 的 `functions` 改指向 `app.py`，並刪除 Stripe 的 5 條 rewrites（Flask 已直接提供 `/api/stripe/*` 路由）。`_check_vercel.py` 改測 Flask app、`/api/health`、`/api/cast`、`/api/providers`、`/api/glossary`、`/api/settings` 與首頁。
 - **Homepage / 品牌定位**: 首頁改以「執業卦師訓練的 AI 六爻解讀」為主軸，加入完整品牌說明、專業六爻解卦八步流程、可問範圍、六爻知識與 8 條 FAQ；文字明確區分「卦師參與建立知識庫、案例、規則與校驗」與「模型微調」，不夸大訓練方式。
 - **SEO**: 首頁 Title 改為「六爻占卜｜執業卦師訓練的 AI 六爻解卦｜知幾」，重寫 description；新增 FAQPage 與 WebApplication JSON-LD、Open Graph／Twitter Card、`robots.txt`、`<noscript>` 摘要；補 `專業六爻占卜`、`專業六爻解卦`、`卦師六爻解卦`、`卦師 AI 占卜`、`卦師訓練的 AI 六爻`、`AI 六爻專業分析`、`真人卦師`、`傳統六爻理論` 等關鍵語。
 - **首頁互動**: 品牌區的 h1 改為視覺相同的 div，讓頁面唯一 h1 落在內容區；起卦畫面新增「知幾是甚麼？」跳轉連結；進入問答後自動收起內容區，返回新占問時再顯示。

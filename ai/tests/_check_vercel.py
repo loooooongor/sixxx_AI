@@ -1,4 +1,4 @@
-"""檢查 Vercel 的 api/*.py functions 與 public/ 靜態檔。"""
+"""檢查 Vercel 的單一 Flask Function 與 public/ 靜態檔。"""
 
 from __future__ import annotations
 
@@ -17,8 +17,7 @@ for p in (str(ROOT), str(AI_DIR), str(ROOT / "src")):
 
 from werkzeug.test import Client  # noqa: E402
 
-import api.cast as api_cast  # noqa: E402
-import api.health as api_health  # noqa: E402
+from ai.wsgi import app as flask_app  # noqa: E402
 
 fails = []
 
@@ -68,18 +67,32 @@ if faq_ld:
 check("robots 禁止爬 /api", "Disallow: /api/" in
       (ROOT / "public" / "robots.txt").read_text(encoding="utf-8"), True)
 
-check("api.cast 有 WSGI app", callable(api_cast.app), True)
-check("api.health 有 WSGI app", callable(api_health.app), True)
+check("app.py 存在", (ROOT / "app.py").is_file(), True)
+check("api/ 舊 wrapper 已移除", not (ROOT / "api").exists(), True)
 
-r = Client(api_health.app).get("/")
+vercel_cfg = json.loads((ROOT / "vercel.json").read_text(encoding="utf-8"))
+check("Functions 只有 app.py", list(vercel_cfg.get("functions", {})), ["app.py"])
+check("已移除 stripe rewrites", vercel_cfg.get("rewrites", []), [])
+
+check("Flask app 可載入", callable(flask_app), True)
+
+r = Client(flask_app).get("/api/health")
 check("api.health 200", r.status_code, 200)
 check("api.health JSON", json.loads(r.get_data(as_text=True)).get("ok"), True)
 
 payload = json.dumps({"question": "部署測試", "hexagram": "地澤臨", "moving": [2]})
-r = Client(api_cast.app).post("/", data=payload, content_type="application/json")
+r = Client(flask_app).post("/api/cast", data=payload, content_type="application/json")
 data = json.loads(r.get_data(as_text=True))
 check("api.cast 200", r.status_code, 200)
 check("api.cast 有卦", (data.get("board") or {}).get("hexagram"), "地澤臨")
+
+for path in ("/api/providers", "/api/glossary", "/api/settings"):
+    r = Client(flask_app).get(path)
+    check(f"{path} 200", r.status_code, 200)
+
+r = Client(flask_app).get("/")
+check("首頁 200", r.status_code, 200)
+check("首頁有品牌", "知幾" in r.get_data(as_text=True), True)
 
 print()
 if fails:
