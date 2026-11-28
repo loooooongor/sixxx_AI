@@ -71,7 +71,8 @@ check("app.py 存在", (ROOT / "app.py").is_file(), True)
 check("api/ 舊 wrapper 已移除", not (ROOT / "api").exists(), True)
 
 vercel_cfg = json.loads((ROOT / "vercel.json").read_text(encoding="utf-8"))
-check("Functions 只有 app.py", list(vercel_cfg.get("functions", {})), ["app.py"])
+check("framework 設為 flask", vercel_cfg.get("framework"), "flask")
+check("不再用 api functions 設定", "functions" in vercel_cfg, False)
 check("已移除 stripe rewrites", vercel_cfg.get("rewrites", []), [])
 
 check("Flask app 可載入", callable(flask_app), True)

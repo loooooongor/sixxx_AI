@@ -65,13 +65,13 @@ bash ai/start.sh
 
 本機仍用 `ai/server.py` 的標準庫伺服器；雲端由根目錄 `app.py` 匯出的單一 Flask app 提供 API，前端靜態檔放在 `public/`。
 
-1. 把 GitHub repo 連到 Vercel，Framework Preset 選 **Flask**（Vercel 會依 `flask` 依賴自動偵測），Root Directory 保持專案根目錄。
+1. 把 GitHub repo 連到 Vercel，Framework Preset 選 **Flask**（本專案 `vercel.json` 已設 `"framework": "flask"`，會覆蓋專案設定），Root Directory 保持專案根目錄。
 2. 在 **Settings → Environment Variables** 設定：
    - `DEEPSEEK_API_KEY`：你的 API 金鑰（必填）
    - `LIUYAO_LLM_PROVIDER`：`deepseek`（預設）
    - `LIUYAO_LLM_MODEL`：`deepseek-chat`（預設）
    - 若要收款：`STRIPE_SECRET_KEY`、`STRIPE_PRICE_SINGLE`、`STRIPE_PRICE_MONTHLY`、`STRIPE_WEBHOOK_SECRET`，以及指向正式網域的 `PUBLIC_BASE_URL`
-3. 重新部署。`public/` 會成為靜態網站；根目錄 `app.py` 匯出 `ai/wsgi.py` 的 Flask app，Vercel 只建立 **1 個 Function**（Hobby 上限 12 個），所有 `/api/*` 由 Flask 路由處理，不再為每個 endpoint 建立獨立 Function。依賴在 `requirements.txt`／`pyproject.toml`，`vercel.json` 給 SSE 60 秒。
+3. 重新部署。`public/` 會成為靜態網站；根目錄 `app.py` 匯出 `ai/wsgi.py` 的 Flask app，Vercel 只建立 **1 個 Function**（Hobby 上限 12 個），所有 `/api/*` 由 Flask 路由處理，不再為每個 endpoint 建立獨立 Function。依賴在 `requirements.txt`／`pyproject.toml`；Hobby（Fluid）預設最長執行 300 秒。
 
 每次改前端（`ai/web`）後，執行 `python ai/tools/sync_public.py` 更新 `public/`，再提交。
 
