@@ -25,6 +25,8 @@ def main() -> int:
     DST.mkdir(parents=True)
     for page in SRC.glob("*.html"):
         shutil.copy2(page, DST / page.name)
+    for extra in list(SRC.glob("*.txt")) + list(SRC.glob("*.xml")):
+        shutil.copy2(extra, DST / extra.name)
     shutil.copytree(SRC / "assets", DST / "assets")
     print(f"已同步 {SRC} → {DST}")
     return 0

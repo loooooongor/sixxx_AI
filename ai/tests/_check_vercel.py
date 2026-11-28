@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -34,14 +35,38 @@ def digest(path: Path) -> str:
 
 
 for rel in ("index.html", "pricing.html", "billing-success.html",
-            "assets/app.css", "assets/app.js"):
+            "robots.txt",
+            "assets/app.css", "assets/app.js",
+            "assets/coin-front.png", "assets/coin-back.png",
+            "assets/coin-front.webp", "assets/coin-back.webp"):
     src = AI_DIR / "web" / rel
     dst = ROOT / "public" / rel
     check(f"public/{rel} 存在", dst.is_file(), True)
     if dst.is_file():
         check(f"public/{rel} 與 ai/web 同步", digest(dst), digest(src))
 
-check("public 首頁有品牌", "知幾筆記" in (ROOT / "public" / "index.html").read_text(encoding="utf-8"), True)
+index_html = (ROOT / "public" / "index.html").read_text(encoding="utf-8")
+check("public 首頁有品牌", "知幾筆記" in index_html, True)
+
+print("\n=== SEO 基本條件 ===")
+title = re.search(r"<title>(.*?)</title>", index_html)
+check("title 有卦師訓練定位", bool(title and "執業卦師訓練" in title.group(1)), True)
+desc = re.search(r'name="description" content="(.*?)"', index_html)
+check("有 meta description", bool(desc), True)
+if desc:
+    check("description 長度 60–120", 60 <= len(desc.group(1)) <= 120, True)
+check("唯一 h1", len(re.findall(r"<h1[\s>]", index_html)), 1)
+check("內容區 h1 有主關鍵字", "執業卦師訓練的 AI 六爻解讀" in index_html, True)
+check("FAQ 為靜態 HTML", index_html.count("<details"), 8)
+faq_ld = [b for b in re.findall(
+    r'<script type="application/ld\+json">(.*?)</script>', index_html, re.S)
+    if '"FAQPage"' in b]
+check("有 FAQPage JSON-LD", len(faq_ld), 1)
+if faq_ld:
+    data = json.loads(faq_ld[0])
+    check("FAQPage 有 8 條", len(data.get("mainEntity", [])), 8)
+check("robots 禁止爬 /api", "Disallow: /api/" in
+      (ROOT / "public" / "robots.txt").read_text(encoding="utf-8"), True)
 
 check("api.cast 有 WSGI app", callable(api_cast.app), True)
 check("api.health 有 WSGI app", callable(api_health.app), True)

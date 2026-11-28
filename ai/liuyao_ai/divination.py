@@ -172,6 +172,8 @@ class CastRequest:
     yongshen: str | None = None          # 用神六親（可選，未給則自動推）
     when: datetime | None = None         # 占卦時間，預設現在
     use_coins: bool = False              # True = 由程式擲錢起卦
+    line_values: list[int] = field(default_factory=list)  # 6/7/8/9 六爻，自下而上
+    gender: str = ""                     # 占問者性別（男/女），感情題取用神用
 
     def resolved_time(self) -> CastTime:
         if self.when is None:
@@ -194,9 +196,17 @@ YONGSHEN_RULES: list[tuple[str, str]] = [
 ]
 
 
-def infer_yongshen(question: str) -> tuple[str | None, str]:
-    """由占問文字推用神，回傳 (六親, 理由)。"""
+def infer_yongshen(question: str, gender: str = "") -> tuple[str | None, str]:
+    """由占問文字與性別推用神，回傳 (六親, 理由)。"""
     q = question or ""
+    g = str(gender or "").strip()
+    generic = ("感情", "姻緣", "戀愛", "婚姻", "交往", "桃花", "對象")
+    female_terms = ("女友", "女朋友", "妻子", "老婆", "女緣")
+    male_terms = ("男友", "男朋友", "丈夫", "老公")
+    if g in ("男", "male") and any(w in q for w in generic) and not any(w in q for w in male_terms):
+        return "妻財", "占問者為男性，感情題以妻財為用神。"
+    if g in ("女", "female") and any(w in q for w in generic) and not any(w in q for w in female_terms):
+        return "官鬼", "占問者為女性，感情題以官鬼為用神。"
     for qin, words in YONGSHEN_RULES:
         hits = [w for w in words.split() if w in q]
         if hits:
@@ -330,6 +340,8 @@ def board_to_dict(board, cast_time: CastTime) -> dict:
              "gan": l.gan, "zhi": l.zhi, "wx": l.wx}
             for l in board.yongshen_lines
         ],
+        "yongshen_fu": list(board.yongshen_fu),
+        "fu_shen": list(board.fu_shen),
         "moving_positions": [l.position for l in board.moving_lines],
         "moving_text": yao_positions([l.position for l in board.moving_lines]),
         "lines": lines,
@@ -358,7 +370,18 @@ def build_cast(req: CastRequest) -> dict:
     """
     ct = req.resolved_time()
 
-    if req.use_coins or (req.hexagram is None):
+    line_values = []
+    if req.line_values:
+        line_values = [int(v) for v in req.line_values]
+        if len(line_values) != 6:
+            raise ValueError("line_values 必須剛好六個數字")
+        if any(v not in (6, 7, 8, 9) for v in line_values):
+            raise ValueError("line_values 只能是 6、7、8、9")
+        bits = [1 if v in (7, 9) else 0 for v in line_values]
+        hexagram = lines_to_hexagram(bits)
+        moving = [i + 1 for i, v in enumerate(line_values) if v in (6, 9)]
+        tosses = []
+    elif req.use_coins or (req.hexagram is None):
         tossed = cast_by_coins()
         hexagram = tossed["hexagram"]
         moving = tossed["moving"]
@@ -374,11 +397,12 @@ def build_cast(req: CastRequest) -> dict:
     yongshen = req.yongshen
     yongshen_reason = ""
     if not yongshen:
-        yongshen, yongshen_reason = infer_yongshen(req.question)
+        yongshen, yongshen_reason = infer_yongshen(req.question, req.gender)
 
     board = cast_board(hexagram, moving, ct.month_zhi, ct.day_gz, yongshen)
     data = board_to_dict(board, ct)
     data["question"] = req.question
+    data["gender"] = req.gender
     data["yongshen_reason"] = yongshen_reason
 
     return {
@@ -386,8 +410,10 @@ def build_cast(req: CastRequest) -> dict:
             "question": req.question,
             "yongshen": yongshen or "",
             "yongshen_reason": yongshen_reason,
+            "gender": req.gender,
             "use_coins": bool(tosses),
             "tosses": tosses,
+            "line_values": line_values,
         },
         "board": data,
     }
@@ -402,6 +428,8 @@ def board_to_prompt_text(board: dict) -> str:
     out.append(f"年：{ct['year_gz']}　月：{ct['month_gz']}（月建{ct['month_zhi']}）"
                f"　日：{ct['day_gz']}（{ct['day_zhi']}）　時辰：{ct['shichen']}")
     out.append(f"旬空：{ct['xunkong'][0]}、{ct['xunkong'][1]}　所屬節氣：{ct['jie']}")
+    if board.get("gender"):
+        out.append(f"占問者性別：{board['gender']}")
     out.append("")
     out.append("【卦盤】")
     out.append(f"主卦：{board['hexagram']}（{board['palace']}宮·{board['palace_wx']}）"
@@ -426,6 +454,26 @@ def board_to_prompt_text(board: dict) -> str:
             f"{ln['gan']}{ln['zhi']}{ln['wx']} | {ln['yin_yang']} | "
             f"{ln['state'] or '無'} | {ln['stage'] or '無'} | {tags} | {change or '無'}"
         )
+    out.append("")
+    if board.get("fu_shen"):
+        out.append("【伏神】（本宮首卦補缺六親）")
+        for f in board["fu_shen"]:
+            fei = f["fei"]
+            tail = "可出伏" if f.get("can_chu") else "不能出伏"
+            if f.get("blockers"):
+                tail += "；受阻：" + "、".join(f["blockers"])
+            elif f.get("reasons"):
+                tail += "；依據：" + "、".join(f["reasons"][:3])
+            line = (
+                f"伏神 {f['qin']}{f['zhi']}{f['wx']}，"
+                f"伏於{fei['pos_name']}爻{fei['qin']}{fei['zhi']}{fei['wx']}之下"
+                f"（{f['relation']}；{tail}）"
+            )
+            if len(f.get("candidates") or []) > 1:
+                line += "；同六親候選爻位 " + "、".join(str(p) for p in f["candidates"])
+            out.append(line)
+        if board.get("yongshen_fu"):
+            out.append("用神不上卦，以同六親伏神為用神；能否出伏直接影響此事能否成。")
     out.append("")
     out.append("【卦級判定】")
     flags = []

@@ -16,6 +16,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Report generator**: 報告佈局從「占時快照」升級為「斷→驗→續生命週期檔案」——新增可選節 **肆·應驗紀實**（事實時間線 + 逐象對應表 + 證據分級徽章：事前斷語·已驗/事後對帳/回溯吻合）與 **伍·應期追蹤**（時間窗/卦理預期/狀態徽章：待驗/警示），編號動態順延；舊案例 JSON 無新欄位則不渲染（完全向後相容）。
 - README（中/英）結構樹同步更新。
 
+### Changed
+- **Homepage / 品牌定位**: 首頁改以「執業卦師訓練的 AI 六爻解讀」為主軸，加入完整品牌說明、專業六爻解卦八步流程、可問範圍、六爻知識與 8 條 FAQ；文字明確區分「卦師參與建立知識庫、案例、規則與校驗」與「模型微調」，不夸大訓練方式。
+- **SEO**: 首頁 Title 改為「六爻占卜｜執業卦師訓練的 AI 六爻解卦｜知幾」，重寫 description；新增 FAQPage 與 WebApplication JSON-LD、Open Graph／Twitter Card、`robots.txt`、`<noscript>` 摘要；補 `專業六爻占卜`、`專業六爻解卦`、`卦師六爻解卦`、`卦師 AI 占卜`、`卦師訓練的 AI 六爻`、`AI 六爻專業分析`、`真人卦師`、`傳統六爻理論` 等關鍵語。
+- **首頁互動**: 品牌區的 h1 改為視覺相同的 div，讓頁面唯一 h1 落在內容區；起卦畫面新增「知幾是甚麼？」跳轉連結；進入問答後自動收起內容區，返回新占問時再顯示。
+- **Web / 體積**: 銅錢圖由 240px PNG（106/110 KB）縮為 168px 並增設 WebP（8.3/8.0 KB），CSS 以 `image-set()` 優先載入 WebP、PNG 作後備；`sync_public.py` 同步 `*.txt`／`*.xml`。
+- **Deploy**: `vercel.json` 指定 `hkg1` 區域（香港使用者與 DeepSeek API 延遲較低）、`/assets/*` 交由 CDN 快取（瀏覽器仍每次 revalidate）、`/api/*` 加 `X-Robots-Tag: noindex`；`.vercelignore` 補 `.npm-cache/`、`.agents/`、`.dsh-bundles/`、`docs/reports/`。
+- **Cleanup**: 刪除 `ai/.tmp/` 內約 467 MB 的截圖測試用瀏覽器 profile（`cp-*`，已 gitignore）；工作區由 536 MB 降至約 69 MB。
+- **Prompt（依占問裁剪段落）**: 不再強制填滿「總斷→用神→世爻→逐象→應期→建議」。新增占問分類（成敗／時間／描述／診斷）：**應期只在時間是問題的一部分時才寫**，猜物、問來意、問東西在哪這類描述型占問不排時間表；**建議只在能從卦理推導出行動或心態選擇時才給**，描述型占問不硬給，也不掛空泛提醒。總斷第二句的「具體卡點」改為有對立、競爭或阻礙時才寫；描述型改寫「所測的是什麼、憑哪個象」。標題可依問題改寫，無實質內容的段落整段省略。
+- **Knowledge（SKILL.md）**: 新增「Output Shape — 依占問裁剪段落」對照表；第 8 步註明應期非必寫；用神速查補「猜物／問來意以應爻為主體」；常見錯誤新增「每卦都硬排應期、硬給建議」。`references/02` 補描述型占問取象說明，`references/08` 輸出規範同步。
+- **Knowledge（context 去重）**: `_extract_skill_core()` 第一段改為在 `## Critical Distinctions` 前截斷，修掉「關鍵辨析」在知識庫上下文中重複出現一次的問題，單次 prompt 少約五千字。
+
 ### Fixed
 - **Engine（旺衰）**: `is_prosperous()` 移除「十二長生進氣（長生／冠帶／臨官／帝旺）」一條——旺衰只看月令旺相休囚死與月日生扶比和。副作用：靜爻逢日沖不再因「自坐帝旺」誤判旺相，**日破得以真正出現**（例：子水卯月午日無動爻生助 → 日破；五爻申金明動生之 → 暗動）。
 - **Docs**: `references/04-動靜暗破.md` 暗動三條件、日破定義、判定流程、速查表；`references/06-三合六合.md` 新增內／外卦三合局節；`references/03-旺衰月日.md` §三註明十二長生不參旺衰；`SKILL.md` 第 2／4／6 步、辨析 #1／#7、常見錯誤表同步。

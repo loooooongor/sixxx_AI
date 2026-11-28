@@ -123,12 +123,18 @@ for ln in text.splitlines()[:18]:
 print("\n=== 9. 輸出規範與未成局三合 ===")
 import copy
 from liuyao_ai import prompt as pr
-bundle = pr.build_prompt(b, req.question)
+bundle = pr.build_prompt(b, req.question, mode="detailed")
 check("輸出含逐象詳解", "逐象詳解" in bundle.user, True)
 check("不再使用全局分解", "全局分解" not in bundle.user, True)
 check("系統要求只解讀有用象", "只解讀「有用」的象" in bundle.system, True)
 check("系統要求三合只論實成", "三合只論實成之局" in bundle.system, True)
 check("系統要求先說當下", "先說當下，再說未來" in bundle.system, True)
+check("系統要求應期非必寫", "應期不是每卦必寫" in bundle.system, True)
+check("系統有占問分類裁剪", "依占問裁剪段落" in bundle.system, True)
+check("系統有描述型占問", "描述型" in bundle.system and "猜物" in bundle.system, True)
+check("user 應期條件", "只有當時間是問題的一部分" in bundle.user, True)
+check("user 建議條件", "沒有可操作的建議" in bundle.user, True)
+check("user 猜物不硬套卡點", "不必勉強給成敗" in bundle.user, True)
 compact = pr._compact_for_prompt(b)
 check("本例虛合不進 JSON", compact["sanhe"], {})
 check("本例虛合不進文字", "三合：" not in text, True)
@@ -152,6 +158,19 @@ check("user 無破折號", "——" not in bundle.user and "—" not in bundle.u
 check("user 要求旺衰長生分開", "旺衰與十二長生分開寫" in bundle.user, True)
 check("無兄弟奔走", "奔走" not in bundle.system, True)
 check("有三合位置規則", "三合局必須符合成局位置" in bundle.system, True)
+check("有飛伏規則", "飛神伏神只認引擎欄位" in bundle.system, True)
+check("詳細版模式", "本次輸出模式：詳細版" in bundle.system, True)
+check("預設精簡", "本次輸出模式：精簡版" in pr.build_prompt(b, req.question).system, True)
+check("暗動象意", "暗中、背後推動" in bundle.system and "未察覺之事悄悄發生" in bundle.system, True)
+check("無浮動", "浮動" not in pr.build_prompt(b, req.question).system, True)
+_concise = pr.build_prompt(b, "測試精簡模式", mode="concise")
+check("精簡版模式", "本次輸出模式：精簡版" in _concise.system, True)
+check("精簡版四段", "## 二、卦象與判斷" in _concise.user, True)
+check("精簡版沒有用神段", "## 二、用神" not in _concise.user, True)
+check("精簡版旺相", "旺相" in _concise.system and "休囚" in _concise.system, True)
+check("精簡版應期可省", "只在時間是問題的一部分時才寫" in _concise.user, True)
+check("精簡版建議可省", "描述型占問沒有可操作的建議" in _concise.user, True)
+check("精簡版回傳 mode", _concise.mode, "concise")
 
 b_formed = copy.deepcopy(b)
 b_formed["sanhe"] = {"亥卯未木局": {"status": "實成之局"}}
@@ -197,6 +216,68 @@ check("子臨日但辰靜不成局", _sanhe_status(_case4, day="子").startswith
 _case5 = [_mk(1, "巳"), _mk(2, "辰", True), _mk(3, "卯"),
           _mk(4, "申", True), _mk(5, "子"), _mk(6, "丑")]
 check("日月助成且其餘兩支皆動", _sanhe_status(_case5, day="子").startswith("實成"), True)
+
+print("\n=== 12. 飛神伏神 ===")
+_fu_req = dv.CastRequest(
+    question="和一家國企合作能否談成",
+    hexagram="水火既濟",
+    moving=[],
+    yongshen="妻財",
+    when=datetime(2019, 2, 21, 17, 36, 22, tzinfo=TZ),
+)
+_fu_board = dv.build_cast(_fu_req)["board"]
+_fu = _fu_board["fu_shen"][0]
+check("既濟缺妻財", _fu["qin"], "妻財")
+check("妻財午火伏三爻", (_fu["pos"], _fu["zhi"]), (3, "午"))
+check("伏於兄弟亥水下", (_fu["fei"]["qin"], _fu["fei"]["zhi"]), ("兄弟", "亥"))
+check("飛剋伏", _fu["relation"], "飛剋伏")
+check("伏神空亡不能出", _fu["can_chu"], False)
+check("用神不上卦取伏神", len(_fu_board["yongshen_fu"]), 1)
+check("伏神進 prompt 文字", "伏神 妻財午火" in dv.board_to_prompt_text(_fu_board), True)
+
+_gou_req = dv.CastRequest(
+    question="測試天風姤伏神",
+    hexagram="天風姤",
+    moving=[],
+    yongshen="妻財",
+    when=datetime(2019, 2, 21, 17, 36, 22, tzinfo=TZ),
+)
+_gou_board = dv.build_cast(_gou_req)["board"]
+_gou = _gou_board["fu_shen"][0]
+check("天風姤實際缺妻財", _gou["qin"], "妻財")
+check("天風姤伏神在二爻", _gou["pos"], 2)
+check("天風姤飛生伏", _gou["relation"], "飛生伏")
+check("六親齊全不取伏神", dv.build_cast(dv.CastRequest(
+    question="測試六親齊全", hexagram="乾為天", moving=[],
+    when=datetime(2019, 2, 21, 17, 36, 22, tzinfo=TZ)))["board"]["fu_shen"], [])
+
+print("\n=== 13. 銅錢／報數的六爻輸入 ===")
+_lv = [7, 8, 7, 8, 9, 8]   # 少陽、少陰、少陽、少陰、老陽、少陰
+_lv_cast = dv.build_cast(dv.CastRequest(
+    question="六爻輸入測試", line_values=_lv,
+    when=datetime(2019, 2, 21, 17, 36, 22, tzinfo=TZ)))
+check("line_values 卦名", _lv_cast["board"]["hexagram"], "水火既濟")
+check("line_values 動爻", _lv_cast["board"]["moving_positions"], [5])
+check("line_values 變卦", _lv_cast["board"]["changed_hexagram"], "地火明夷")
+check("line_values 有記錄", _lv_cast["meta"]["line_values"], _lv)
+_static = dv.build_cast(dv.CastRequest(
+    question="六爻全靜", line_values=[7, 7, 7, 7, 7, 7],
+    when=datetime(2019, 2, 21, 17, 36, 22, tzinfo=TZ)))
+check("全靜為乾", _static["board"]["hexagram"], "乾為天")
+check("全靜無動爻", _static["board"]["moving_positions"], [])
+check("男占感情取妻財", dv.infer_yongshen("這段感情還能走下去嗎", "男")[0], "妻財")
+check("女占感情取官鬼", dv.infer_yongshen("這段感情還能走下去嗎", "女")[0], "官鬼")
+_gender_board = dv.build_cast(dv.CastRequest(
+    question="這段感情還能走下去嗎", hexagram="地澤臨", moving=[2], gender="女",
+    when=datetime(2019, 2, 21, 17, 36, 22, tzinfo=TZ)))["board"]
+check("卦盤有性別", _gender_board.get("gender"), "女")
+check("性別影響用神", _gender_board.get("yongshen_qin"), "官鬼")
+check("性別進 prompt", "占問者性別：女" in dv.board_to_prompt_text(_gender_board), True)
+try:
+    dv.build_cast(dv.CastRequest(question="壞輸入", line_values=[7, 8]))
+    check("line_values 長度錯誤", False, True)
+except ValueError:
+    check("line_values 長度錯誤", True, True)
 
 print("\n" + "=" * 60)
 if fails:

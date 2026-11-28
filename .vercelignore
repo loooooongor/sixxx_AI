@@ -6,3 +6,7 @@ ai/config/*.json
 .venv/
 .vercel/
 node_modules/
+.npm-cache/
+.agents/
+.dsh-bundles/
+docs/reports/

@@ -22,13 +22,88 @@ const S = {
 };
 
 const prefs = {
-  mode: "coins",          // coins | manual
+  castVersion: 3,
+  mode: "numbers",        // numbers | coin
+  detail: "concise",      // detailed | concise
+  gender: "",
   yongshen: "",
   whenMode: "now",        // now | custom
   when: "",
-  hexagram: "",
-  moving: "",
 };
+
+const draft = {
+  coinLines: [],
+  coinStep: 0,
+  numberLines: ["", "", "", "", "", ""],
+};
+
+const HEXAGRAM_NAMES = {
+  "000000": "坤為地",
+  "100000": "地雷復",
+  "010000": "地水師",
+  "110000": "地澤臨",
+  "001000": "地山謙",
+  "101000": "地火明夷",
+  "011000": "地風升",
+  "111000": "地天泰",
+  "000100": "雷地豫",
+  "100100": "震為雷",
+  "010100": "雷水解",
+  "110100": "雷澤歸妹",
+  "001100": "雷山小過",
+  "101100": "雷火豐",
+  "011100": "雷風恆",
+  "111100": "雷天大壯",
+  "000010": "水地比",
+  "100010": "水雷屯",
+  "010010": "坎為水",
+  "110010": "水澤節",
+  "001010": "水山蹇",
+  "101010": "水火既濟",
+  "011010": "水風井",
+  "111010": "水天需",
+  "000110": "澤地萃",
+  "100110": "澤雷隨",
+  "010110": "澤水困",
+  "110110": "兌為澤",
+  "001110": "澤山鹹",
+  "101110": "澤火革",
+  "011110": "澤風大過",
+  "111110": "澤天夬",
+  "000001": "山地剝",
+  "100001": "山雷頤",
+  "010001": "山水蒙",
+  "110001": "山澤損",
+  "001001": "艮為山",
+  "101001": "山火賁",
+  "011001": "山風蠱",
+  "111001": "山天大畜",
+  "000101": "火地晉",
+  "100101": "火雷噬嗑",
+  "010101": "火水未濟",
+  "110101": "火澤睽",
+  "001101": "火山旅",
+  "101101": "離為火",
+  "011101": "火風鼎",
+  "111101": "火天大有",
+  "000011": "風地觀",
+  "100011": "風雷益",
+  "010011": "風水渙",
+  "110011": "風澤中孚",
+  "001011": "風山漸",
+  "101011": "風火家人",
+  "011011": "巽為風",
+  "111011": "風天小畜",
+  "000111": "天地否",
+  "100111": "天雷無妄",
+  "010111": "天水訟",
+  "110111": "天澤履",
+  "001111": "天山遁",
+  "101111": "天火同人",
+  "011111": "天風姤",
+  "111111": "乾為天"
+};
+
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
@@ -196,6 +271,7 @@ function bindTerms(root) {
 
 function boot() {
   termPop = $("#termPop");
+  fillCoinOptions();
   loadPrefs();
   loadHistory();
   bindEvents();
@@ -281,11 +357,20 @@ function bindEvents() {
     }
   });
 
-  $$("#prefMode .seg-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      $$("#prefMode .seg-btn").forEach((b) => b.classList.toggle("is-on", b === btn));
-      $("#prefManualWrap").hidden = btn.dataset.mode !== "manual";
+  $("#castMethod").addEventListener("change", onCastMethodChange);
+  $("#btnTossCoin").addEventListener("click", tossNextLine);
+  $$("#castGender .seg-btn").forEach((btn) => {
+    btn.addEventListener("click", () => setGender(btn.dataset.gender));
+  });
+  $$(".num-input").forEach((inp) => {
+    inp.addEventListener("input", () => {
+      const pos = Number(inp.dataset.pos);
+      draft.numberLines[pos - 1] = inp.value.trim();
+      clearCastError();
     });
+  });
+  $$(".coin-slot").forEach((btn) => {
+    btn.addEventListener("click", tossNextLine);
   });
   $$("#prefWhenMode .seg-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -293,6 +378,11 @@ function bindEvents() {
       const custom = btn.dataset.when === "custom";
       $("#prefWhenWrap").hidden = !custom;
       if (custom && !$("#prefWhen").value) $("#prefWhen").value = nowLocalInput();
+    });
+  });
+  $$("#prefDetail .seg-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      $$("#prefDetail .seg-btn").forEach((b) => b.classList.toggle("is-on", b === btn));
     });
   });
 
@@ -354,12 +444,7 @@ function handleSubmit() {
   }
   if (S.busy) return;
   if (!S.board) {
-    if (prefs.mode === "manual" && !prefs.hexagram.trim()) {
-      flashWarn("手動指定模式需要先設定卦名。");
-      openSettings();
-      return;
-    }
-    startCast(text);
+    startFromForm();
   } else {
     sendFollowup(text);
   }
@@ -368,21 +453,17 @@ function handleSubmit() {
 function buildCastBody(question) {
   const body = {
     question,
+    gender: prefs.gender || null,
     yongshen: prefs.yongshen || null,
-    use_coins: prefs.mode === "coins",
   };
   if (prefs.whenMode === "custom" && prefs.when) {
     const d = new Date(prefs.when);
     if (!Number.isNaN(d.getTime())) body.when = { iso: d.toISOString() };
   }
-  if (prefs.mode === "manual") {
-    body.hexagram = prefs.hexagram.trim();
-    const raw = prefs.moving.trim();
-    body.moving = raw
-      ? raw.replace(/，/g, ",").split(",")
-          .map((x) => parseInt(x.trim(), 10))
-          .filter((n) => Number.isInteger(n) && n >= 1 && n <= 6)
-      : [];
+  if (prefs.mode === "numbers") {
+    body.line_values = numbersLineValues();
+  } else if (prefs.mode === "coin") {
+    body.line_values = draft.coinLines.slice();
   }
   return body;
 }
@@ -394,6 +475,7 @@ async function startCast(question) {
   $("#dockWarn").hidden = true;
   $("#empty").hidden = true;
   $("#thread").hidden = false;
+  showSeo(false);
 
   const pending = castingCard();
   $("#thread").appendChild(pending);
@@ -449,6 +531,7 @@ async function startCast(question) {
       $("#thread").innerHTML = "";
       $("#thread").hidden = true;
       $("#empty").hidden = false;
+      showSeo(true);
     }
     flashWarn(e.message || String(e), 6000);
   }
@@ -481,6 +564,7 @@ async function sendFollowup(text) {
       question: S.question,
       prior_answer: S.answer,
       followup: text,
+      detail: prefs.detail,
     }, {
       delta: (t) => {
         if (epoch !== S.epoch) return;
@@ -552,6 +636,7 @@ async function streamRead(board, question) {
     await ssePost("/api/read", {
       board,
       question: board.question || question,
+      detail: prefs.detail,
     }, {
       board: (data) => {
         if (epoch !== S.epoch) return;
@@ -741,6 +826,12 @@ function scrollBottom(force) {
   if (force || gap < 180) vp.scrollTop = vp.scrollHeight;
 }
 
+/* 進入問答後收起首頁的品牌說明與 FAQ，返回起卦畫面時再顯示。 */
+function showSeo(show) {
+  const el = $("#about");
+  if (el) el.hidden = !show;
+}
+
 function updateHeader() {
   const title = S.question || "新的占問";
   const titleEl = $("#chatTitle");
@@ -868,15 +959,97 @@ function fillHexagramList() {
   if (list) list.innerHTML = names.map((n) => `<option value="${n}">`).join("");
 }
 
+function fillCoinOptions() {
+  const options = [
+    ["7", "少陽（一背二字）"],
+    ["8", "少陰（二背一字）"],
+    ["9", "老陽（三背）"],
+    ["6", "老陰（三字）"],
+  ];
+  $$(".coin-line").forEach((sel) => {
+    sel.innerHTML = '<option value="">請選</option>'
+      + options.map(([v, label]) => `<option value="${v}">${label}</option>`).join("");
+  });
+}
+
+function numberToLineValue(raw) {
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < 0) return null;
+  let r = n % 8;
+  if (r === 0) r = 8;
+  if (r === 1) return 9;                 // 陽動
+  if (r === 2 || r === 3 || r === 5) return 8; // 陰
+  if (r === 4 || r === 6 || r === 7) return 7; // 陽
+  if (r === 8) return 6;                 // 陰動
+  return null;
+}
+
+function numbersLineValuesOf(raw) {
+  const parts = String(raw || "").split(/[\s,，、]+/).filter(Boolean);
+  if (parts.length !== 6) return null;
+  const vals = parts.map(numberToLineValue);
+  return vals.every((v) => v !== null) ? vals : null;
+}
+
+function numbersLineValues() {
+  return numbersLineValuesOf(draft.numberLines.join(","));
+}
+
+function coinValueFromBacks(backs) {
+  if (backs === 0) return 6;   // 三字，老陰
+  if (backs === 1) return 7;   // 一背二字，少陽
+  if (backs === 2) return 8;   // 二背一字，少陰
+  return 9;                    // 三背，老陽
+}
+
+function hexagramNameFromDraft() {
+  if (draft.coinLines.length !== 6) return "";
+  const key = draft.coinLines.map((v) => (v === 7 || v === 9 ? "1" : "0")).join("");
+  return HEXAGRAM_NAMES[key] || "";
+}
+
+function renderCoinResults() {
+  const box = $("#coinResults");
+  if (!box) return;
+  const rows = [];
+  for (let i = 5; i >= 0; i--) {
+    const v = draft.coinLines[i];
+    if (!v) {
+      rows.push('<div class="hex-row is-empty"><i class="bar"></i></div>');
+      continue;
+    }
+    const yang = v === 7 || v === 9;
+    const moving = v === 6 || v === 9;
+    const bars = yang
+      ? '<i class="bar"></i>'
+      : '<i class="bar"></i><i class="bar"></i>';
+    const mark = moving ? `<b class="move">${v === 9 ? "○" : "×"}</b>` : "";
+    rows.push(`<div class="hex-row ${yang ? "yang" : "yin"}${moving ? " moving" : ""}">${bars}${mark}</div>`);
+  }
+  box.innerHTML = rows.join("");
+  const done = draft.coinStep >= 6;
+  const name = done ? hexagramNameFromDraft() : "";
+  const btn = $("#btnTossCoin");
+  if (btn) {
+    btn.textContent = name || "搖卦";
+    btn.classList.toggle("is-done", done && Boolean(name));
+    btn.disabled = done;
+    if (typeof btn.setAttribute === "function") {
+      btn.setAttribute("aria-label", name ? `卦已搖成：${name}` : "搖卦");
+    }
+  }
+}
+
 function loadPrefs() {
   try {
     const raw = JSON.parse(localStorage.getItem(PREFS_KEY) || "{}");
-    if (raw.mode === "coins" || raw.mode === "manual") prefs.mode = raw.mode;
+    if (raw.castVersion === 3
+        && (raw.mode === "numbers" || raw.mode === "coin")) prefs.mode = raw.mode;
+    if (raw.detail === "concise" || raw.detail === "detailed") prefs.detail = raw.detail;
+    if (raw.gender === "male" || raw.gender === "female") prefs.gender = raw.gender;
     if (typeof raw.yongshen === "string") prefs.yongshen = raw.yongshen;
     if (raw.whenMode === "now" || raw.whenMode === "custom") prefs.whenMode = raw.whenMode;
     if (typeof raw.when === "string") prefs.when = raw.when;
-    if (typeof raw.hexagram === "string") prefs.hexagram = raw.hexagram;
-    if (typeof raw.moving === "string") prefs.moving = raw.moving;
   } catch {
     /* 忽略壞資料 */
   }
@@ -891,20 +1064,17 @@ function savePrefs() {
 }
 
 function syncPrefsUI() {
-  $$("#prefMode .seg-btn").forEach((b) => b.classList.toggle("is-on", b.dataset.mode === prefs.mode));
+  const method = $("#castMethod");
+  if (method) method.value = prefs.mode;
+  $$("#prefDetail .seg-btn").forEach((b) => b.classList.toggle("is-on", b.dataset.detail === prefs.detail));
   $$("#prefWhenMode .seg-btn").forEach((b) => b.classList.toggle("is-on", b.dataset.when === prefs.whenMode));
   const ys = $("#prefYongshen");
   if (ys) ys.value = prefs.yongshen;
-  const hex = $("#prefHex");
-  if (hex) hex.value = prefs.hexagram;
-  const mv = $("#prefMoving");
-  if (mv) mv.value = prefs.moving;
   const when = $("#prefWhen");
   if (when && prefs.when) when.value = prefs.when;
   const whenWrap = $("#prefWhenWrap");
   if (whenWrap) whenWrap.hidden = prefs.whenMode !== "custom";
-  const manualWrap = $("#prefManualWrap");
-  if (manualWrap) manualWrap.hidden = prefs.mode !== "manual";
+  syncCastPanels();
   updateDockNote();
 }
 
@@ -912,9 +1082,6 @@ function updateDockNote() {
   const el = $("#dockNote");
   if (!el) return;
   const bits = [];
-  if (prefs.mode === "manual") {
-    bits.push(prefs.hexagram ? `手動指定：${prefs.hexagram}` : "手動指定");
-  }
   if (prefs.yongshen) bits.push(`用神 ${prefs.yongshen}`);
   if (prefs.whenMode === "custom" && prefs.when) {
     bits.push(`指定時間 ${prefs.when.replace("T", " ")}`);
@@ -926,6 +1093,122 @@ function updateDockNote() {
 function activeSeg(sel) {
   const on = $(`${sel} .seg-btn.is-on`);
   return on ? on.dataset : {};
+}
+
+function syncCastPanels() {
+  const coin = $("#castCoinPanel");
+  const nums = $("#castNumbersPanel");
+  if (coin) coin.hidden = prefs.mode !== "coin";
+  if (nums) nums.hidden = prefs.mode !== "numbers";
+  $$("#castGender .seg-btn").forEach((b) => b.classList.toggle("is-on", b.dataset.gender === prefs.gender));
+  $$(".num-input").forEach((inp) => {
+    const pos = Number(inp.dataset.pos);
+    inp.value = draft.numberLines[pos - 1] || "";
+  });
+  renderCoinResults();
+}
+
+function setGender(gender) {
+  prefs.gender = gender;
+  savePrefs();
+  syncCastPanels();
+  clearCastError();
+}
+
+function clearCastError() {
+  const el = $("#castFormError");
+  if (!el) return;
+  el.textContent = "";
+  el.hidden = true;
+}
+
+function showCastError(msg) {
+  const el = $("#castFormError");
+  if (!el) return;
+  el.textContent = msg;
+  el.hidden = false;
+}
+
+function resetCoinDraft() {
+  coinBusy = false;
+  draft.coinLines = [];
+  draft.coinStep = 0;
+  $$(".coin-slot .coin3d").forEach((el) => el.classList.remove("show-back", "is-flipping"));
+  renderCoinResults();
+}
+
+function resetCastDraft() {
+  resetCoinDraft();
+  draft.numberLines = ["", "", "", "", "", ""];
+  $$(".num-input").forEach((inp) => { inp.value = ""; });
+  clearCastError();
+}
+
+function playCoinFlip() {
+  return new Promise((resolve) => {
+    const coins = $$(".coin-slot .coin3d");
+    coins.forEach((el) => {
+      el.classList.remove("is-flipping", "show-back");
+      void el.offsetWidth;
+      el.classList.add("is-flipping");
+    });
+    window.setTimeout(() => {
+      coins.forEach((el) => el.classList.remove("is-flipping"));
+      resolve();
+    }, 960);
+  });
+}
+
+let coinBusy = false;
+
+async function tossNextLine() {
+  if (coinBusy || draft.coinStep >= 6) return;
+  coinBusy = true;
+  clearCastError();
+  const btn = $("#btnTossCoin");
+  if (btn) btn.disabled = true;
+  const faces = [Math.random() < 0.5, Math.random() < 0.5, Math.random() < 0.5];
+  await playCoinFlip();
+  $$(".coin-slot .coin3d").forEach((el, i) => el.classList.toggle("show-back", faces[i]));
+  const backs = faces.filter(Boolean).length;
+  draft.coinLines.push(coinValueFromBacks(backs));
+  draft.coinStep += 1;
+  renderCoinResults();
+  coinBusy = false;
+}
+
+function onCastMethodChange() {
+  prefs.mode = $("#castMethod").value === "coin" ? "coin" : "numbers";
+  savePrefs();
+  syncCastPanels();
+  clearCastError();
+}
+
+function startFromForm() {
+  const question = $("#prompt").value.trim();
+  if (!question) {
+    showCastError("請先在下方寫下所問何事。");
+    $("#prompt").focus();
+    return;
+  }
+  if (!prefs.gender) {
+    showCastError("請先選性別；感情卦會用性別取用神。");
+    return;
+  }
+  if (prefs.mode === "numbers") {
+    const vals = numbersLineValues();
+    if (!vals) {
+      showCastError("請填好六個數字（例：13, 5, 24, 6, 4, 8）。");
+      return;
+    }
+  } else if (prefs.mode === "coin") {
+    if (draft.coinLines.length !== 6) {
+      showCastError("請先依序搖完六爻。");
+      return;
+    }
+  }
+  clearCastError();
+  startCast(question);
 }
 
 function openSettings() {
@@ -1015,15 +1298,9 @@ function showSheetError(msg) {
 async function saveSettings() {
   if (!S.config) return;
 
-  const mode = (activeSeg("#prefMode").mode) || "coins";
   const whenMode = (activeSeg("#prefWhenMode").when) || "now";
-  const hex = $("#prefHex").value.trim();
   const whenVal = $("#prefWhen").value;
 
-  if (mode === "manual" && !hex) {
-    showSheetError("手動指定需要填卦名（例：地澤臨，或只填「臨」）。");
-    return;
-  }
   if (whenMode === "custom" && !whenVal) {
     showSheetError("請指定占卦時間，或改回「現在」。");
     return;
@@ -1062,12 +1339,10 @@ async function saveSettings() {
     if (!res.ok) throw new Error(res.error || "儲存失敗");
     S.config = res.settings;
 
-    prefs.mode = mode;
+    prefs.detail = (activeSeg("#prefDetail").detail) || "concise";
     prefs.yongshen = $("#prefYongshen").value;
     prefs.whenMode = whenMode;
     prefs.when = whenVal;
-    prefs.hexagram = hex;
-    prefs.moving = $("#prefMoving").value.trim();
     savePrefs();
     updateDockNote();
     renderLlmState();
@@ -1210,6 +1485,7 @@ function restoreHistory(item) {
   $("#empty").hidden = true;
   $("#thread").hidden = false;
   $("#thread").innerHTML = "";
+  showSeo(false);
   $("#thread").appendChild(userRow(item.question, castStamp(item.board)));
 
   const card = document.createElement("article");
@@ -1275,8 +1551,10 @@ function resetChat() {
   thread.innerHTML = "";
   thread.hidden = true;
   $("#empty").hidden = false;
+  showSeo(true);
   $("#prompt").value = "";
   $("#prompt").placeholder = "寫下所問何事…";
+  resetCastDraft();
   autosize();
   updateHeader();
   renderHistory();

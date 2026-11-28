@@ -62,6 +62,10 @@ def _build_cast(body: dict) -> dict:
     if isinstance(moving, str):
         moving = [int(x) for x in moving.replace("，", ",").split(",") if x.strip()]
     moving = [int(x) for x in moving]
+    line_values = body.get("line_values") or []
+    if isinstance(line_values, str):
+        line_values = [int(x) for x in line_values.replace("，", ",").split(",") if x.strip()]
+    line_values = [int(x) for x in line_values]
     req = divination.CastRequest(
         question=question,
         hexagram=hexagram,
@@ -69,6 +73,8 @@ def _build_cast(body: dict) -> dict:
         yongshen=body.get("yongshen") or None,
         when=parse_when(body.get("when")),
         use_coins=bool(body.get("use_coins")),
+        line_values=line_values,
+        gender=str(body.get("gender") or ""),
     )
     return divination.build_cast(req)
 
@@ -93,15 +99,16 @@ def _sse(events) -> Response:
     return resp
 
 
-def _read_events(board: dict, question: str, source: str):
+def _read_events(board: dict, question: str, source: str, mode: str = "detailed"):
     cfg = llm.LLMConfig.load()
-    bundle = prompt.build_prompt(board, question)
+    bundle = prompt.build_prompt(board, question, mode=mode)
     yield "board", board
     yield "meta", {
         "provider": cfg.spec["label"],
         "model": cfg.model,
         "prompt_chars": len(bundle.system) + len(bundle.user),
         "board_source": source,
+        "mode": mode,
         "hexagram": board["hexagram"],
         "changed_hexagram": board.get("changed_hexagram"),
         "moving_positions": board["moving_positions"],
@@ -270,8 +277,10 @@ def cast():
 def preview():
     body = _read_body()
     board, question, source = _resolve_board(body)
-    bundle = prompt.build_prompt(board, question)
+    mode = prompt.normalize_mode(body.get("detail") or body.get("mode"))
+    bundle = prompt.build_prompt(board, question, mode=mode)
     return jsonify({
+        "mode": mode,
         "ok": True,
         "board": board,
         "board_source": source,
@@ -296,7 +305,8 @@ def read():
             "board": board,
             "need_settings": True,
         }), 428
-    return _sse(_read_events(board, question, source))
+    mode = prompt.normalize_mode(body.get("detail") or body.get("mode"))
+    return _sse(_read_events(board, question, source, mode))
 
 
 @app.post("/api/followup")
@@ -319,7 +329,8 @@ def followup():
             "need_settings": True,
         }), 428
 
-    bundle = prompt.build_followup(board, question, prior, followup_text)
+    mode = prompt.normalize_mode(body.get("detail") or body.get("mode"))
+    bundle = prompt.build_followup(board, question, prior, followup_text, mode=mode)
 
     def events():
         try:

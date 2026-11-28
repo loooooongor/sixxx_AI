@@ -8,6 +8,7 @@ import itertools
 
 from .data import (
     BAGUA, BAGUA_NAGAN, BAGUA_NAZHI, DIZHI_WUXING, WUXING_MU,
+    WUXING_SHENG, WUXING_KE,
     JINSHEN, TUISHEN, LIUSHEN_ORDER, LIUSHEN_START, find_hexagram, HEXAGRAMS,
     CHONG, LIUHE,
 )
@@ -188,6 +189,118 @@ def _detect_sanhe(board):
             "formed_by": formed_by,
         }
     board.sanhe = result
+
+
+def _fei_fu_relation(fei_wx, fu_wx):
+    """飛神與伏神的五行關係。"""
+    if WUXING_SHENG.get(fei_wx) == fu_wx:
+        return "飛生伏", "飛神生伏神，伏神得生，較易出伏"
+    if WUXING_SHENG.get(fu_wx) == fei_wx:
+        return "伏生飛", "伏神生飛神，伏神洩氣，較難出伏"
+    if WUXING_KE.get(fei_wx) == fu_wx:
+        return "飛剋伏", "飛神剋伏神，伏神受制，較難出伏"
+    if WUXING_KE.get(fu_wx) == fei_wx:
+        return "伏剋飛", "伏神剋飛神，伏神有力，但出伏帶制約"
+    return "比和", "飛伏比和，伏神得扶持"
+
+
+def _detect_fushen(board):
+    """依本宮首卦補缺六親，計算飛神、伏神、飛伏關係與出伏。
+
+    規則：
+    * 只在本卦六親不全時取伏神；
+    * 伏神取自本宮首卦（八純卦）同一六親所在爻位；
+    * 同六親多爻時先取最低爻位，另列 candidates 供核對；
+    * 伏神出伏看飛神空破休囚、伏神日月生扶/臨值/日沖、飛生伏或比和；
+      伏神空亡、月破或飛神旺相剋伏時，先論受制，不能出伏。
+    """
+    actual_qins = {ln.qin for ln in board.lines if ln.qin}
+    if len(actual_qins) >= 5:
+        board.fu_shen = []
+        return
+    pure_zhi = BAGUA_NAZHI.get(board.palace)
+    if not pure_zhi:
+        return
+    pure_names = {
+        "乾": "乾為天", "坎": "坎為水", "艮": "艮為山", "震": "震為雷",
+        "巽": "巽為風", "離": "離為火", "坤": "坤為地", "兌": "兌為澤",
+    }
+    pure = []
+    for pos, zhi in enumerate(pure_zhi, 1):
+        wx = DIZHI_WUXING[zhi]
+        pure.append({
+            "pos": pos, "zhi": zhi, "wx": wx,
+            "qin": liuqin(wx, board.palace_wx),
+        })
+
+    result = []
+    for qin in ("父母", "兄弟", "子孫", "妻財", "官鬼"):
+        if qin in actual_qins:
+            continue
+        candidates = [p for p in pure if p["qin"] == qin]
+        if not candidates:
+            continue
+        src = candidates[0]
+        fei = board.line(src["pos"])
+        relation, relation_note = _fei_fu_relation(fei.wx, src["wx"])
+        reasons = []
+        blockers = []
+
+        if fei.void:
+            reasons.append("飛神空亡")
+        if fei.state in ("休", "囚", "死"):
+            reasons.append("飛神休囚")
+        if fei.month_break or fei.day_break:
+            reasons.append("飛神沖破")
+        if (WUXING_SHENG.get(board.month_wx) == src["wx"]
+                or WUXING_SHENG.get(board.day_wx) == src["wx"]):
+            reasons.append("日月生扶伏神")
+        if board.month_wx == src["wx"] or board.day_wx == src["wx"]:
+            reasons.append("日月比和伏神")
+        if src["zhi"] in (board.month_zhi, board.day_zhi):
+            reasons.append("伏神臨日月")
+        if is_chong(board.day_zhi, src["zhi"]) or is_chong(src["zhi"], board.day_zhi):
+            reasons.append("伏神得日沖動")
+        if relation in ("飛生伏", "比和", "伏剋飛"):
+            reasons.append(relation_note)
+        if relation == "伏生飛":
+            blockers.append("伏神洩氣")
+        if relation == "飛剋伏" and not any(r.startswith("飛神") for r in reasons):
+            blockers.append("飛神旺相剋伏")
+        if src["zhi"] in board.xunkong:
+            blockers.append("伏神空亡")
+        if is_chong(board.month_zhi, src["zhi"]) or is_chong(src["zhi"], board.month_zhi):
+            blockers.append("伏神月破")
+
+        can_chu = bool(reasons) and not blockers
+        result.append({
+            "pos": src["pos"],
+            "pos_name": board.line(src["pos"]).name,
+            "qin": qin,
+            "zhi": src["zhi"],
+            "wx": src["wx"],
+            "state": wuxing_state(src["wx"], board.month_wx),
+            "pure_gua": pure_names.get(board.palace, board.palace + "宮首卦"),
+            "fei": {
+                "pos": fei.position,
+                "pos_name": fei.name,
+                "qin": fei.qin,
+                "zhi": fei.zhi,
+                "wx": fei.wx,
+                "state": fei.state,
+                "void": bool(fei.void),
+            },
+            "relation": relation,
+            "relation_note": relation_note,
+            "can_chu": can_chu,
+            "reasons": reasons,
+            "blockers": blockers,
+            "candidates": [p["pos"] for p in candidates],
+        })
+    board.fu_shen = result
+    board.yongshen_fu = [
+        item for item in result if board.yongshen_qin and item["qin"] == board.yongshen_qin
+    ]
 
 
 def _match_sanhe(zhis):
@@ -410,6 +523,8 @@ class Board:
         self.fan_yin = False                # 反吟
         self.sanhe = {}                     # 三合局檢測結果
         self.sanhe_local = []               # 內卦／外卦三合局（動變成局）
+        self.fu_shen = []                   # 伏神（本宮首卦補缺六親）
+        self.yongshen_fu = []               # 用神不上卦時，同六親的伏神
 
         self.is_liuhe_gua = False           # 主卦六合卦
         self.is_liuchong_gua = False        # 主卦六沖卦
@@ -627,6 +742,9 @@ def cast_board(hexagram, moving, month_zhi, day_gz, yongshen_qin=None):
                 eff, reason = _spirit_effective(ln, board)
                 ln.effective = eff
                 ln.effective_reason = reason
+
+    # —— 飛神伏神：本宮首卦補缺六親 ——
+    _detect_fushen(board)
 
     # —— 卦級分析：卦變生克 / 反伏 / 三合 / 六合六沖卦 ——
     _analyze_gua_bian(board)

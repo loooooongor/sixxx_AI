@@ -287,8 +287,11 @@ class KnowledgeBase:
 def _extract_skill_core(skill: str) -> str:
     """從 SKILL.md 抽出「解讀流程」與「關鍵辨析」兩段（最核心、最省 token）。"""
     out: list[str] = []
-    # 抓「Interpretation Workflow」到「Quick Reference」之間
-    m = re.search(r"## Interpretation Workflow.*?(?=## Quick Reference)", skill, re.S)
+    # 抓「Interpretation Workflow」到「Critical Distinctions」之間（含 Output Shape）
+    m = re.search(
+        r"## Interpretation Workflow.*?(?=## Critical Distinctions|## Quick Reference)",
+        skill, re.S,
+    )
     if m:
         out.append(m.group(0).strip())
     m = re.search(r"## Critical Distinctions.*?(?=## Quick Reference)", skill, re.S)

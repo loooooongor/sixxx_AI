@@ -232,7 +232,7 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if path in ("/", "/index.html"):
                 return self._serve_static("index.html")
-            if path in ("/pricing.html", "/billing-success.html"):
+            if path in ("/pricing.html", "/billing-success.html", "/robots.txt"):
                 return self._serve_static(path.lstrip("/"))
             if path.startswith("/assets/"):
                 return self._serve_static(path.lstrip("/"))
@@ -375,6 +375,10 @@ class Handler(BaseHTTPRequestHandler):
         if isinstance(moving, str):
             moving = [int(x) for x in moving.replace("，", ",").split(",") if x.strip()]
         moving = [int(x) for x in moving]
+        line_values = body.get("line_values") or []
+        if isinstance(line_values, str):
+            line_values = [int(x) for x in line_values.replace("，", ",").split(",") if x.strip()]
+        line_values = [int(x) for x in line_values]
 
         req = divination.CastRequest(
             question=question,
@@ -383,6 +387,8 @@ class Handler(BaseHTTPRequestHandler):
             yongshen=body.get("yongshen") or None,
             when=parse_when(body.get("when")),
             use_coins=bool(body.get("use_coins")),
+            line_values=line_values,
+            gender=str(body.get("gender") or ""),
         )
         return divination.build_cast(req)
 
@@ -407,8 +413,10 @@ class Handler(BaseHTTPRequestHandler):
     def _handle_preview(self) -> None:
         body = self._read_json()
         board, question, source = self._resolve_board(body)
-        bundle = prompt.build_prompt(board, question)
+        mode = prompt.normalize_mode(body.get("detail") or body.get("mode"))
+        bundle = prompt.build_prompt(board, question, mode=mode)
         return self._json({
+            "mode": mode,
             "ok": True,
             "board": board,
             "board_source": source,
@@ -422,6 +430,7 @@ class Handler(BaseHTTPRequestHandler):
     def _handle_read(self) -> None:
         body = self._read_json()
         board, question, source = self._resolve_board(body)
+        mode = prompt.normalize_mode(body.get("detail") or body.get("mode"))
 
         cfg = llm.LLMConfig.load()
         if not cfg.configured():
@@ -433,7 +442,7 @@ class Handler(BaseHTTPRequestHandler):
                 "need_settings": True,
             }, 428)
 
-        bundle = prompt.build_prompt(board, question)
+        bundle = prompt.build_prompt(board, question, mode=mode)
         self._sse_start()
         self._sse("board", board)
         self._sse("meta", {
@@ -441,6 +450,7 @@ class Handler(BaseHTTPRequestHandler):
             "model": cfg.model,
             "prompt_chars": len(bundle.system) + len(bundle.user),
             "board_source": source,
+            "mode": mode,
             "hexagram": board["hexagram"],
             "changed_hexagram": board.get("changed_hexagram"),
             "moving_positions": board["moving_positions"],
@@ -473,7 +483,8 @@ class Handler(BaseHTTPRequestHandler):
                 "need_settings": True,
             }, 428)
 
-        bundle = prompt.build_followup(board, question, prior, followup)
+        mode = prompt.normalize_mode(body.get("detail") or body.get("mode"))
+        bundle = prompt.build_followup(board, question, prior, followup, mode=mode)
         self._sse_start()
         try:
             for chunk in llm.stream_chat(cfg, bundle.system, bundle.messages()):
